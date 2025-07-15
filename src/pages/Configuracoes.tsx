@@ -19,6 +19,7 @@ import AddSellerWizard from "@/components/Config/AddSellerWizard";
 import SellerCard from "@/components/Config/SellerCard";
 import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
+import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
 
 interface Seller {
   id: string;
@@ -250,6 +251,7 @@ export default function Configuracoes() {
         {/* Integrations Tab */}
         <TabsContent value="integrations" className="space-y-6">
           <MetaIntegrationSetup />
+          <DifyIntegrationSetup />
           
           <Card className="shadow-card">
             <CardHeader>

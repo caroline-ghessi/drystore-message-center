@@ -43,11 +43,17 @@ class DifyService {
       throw new Error('Integração Dify não configurada');
     }
 
-    return integration.config as { api_url: string; api_key: string };
+    const config = integration.config as { api_url: string };
+    
+    // A API Key vem dos secrets do Supabase via edge function
+    return { 
+      api_url: config.api_url,
+      api_key: 'MANAGED_BY_EDGE_FUNCTION' // Será usado via edge function
+    };
   }
 
   /**
-   * Envia mensagem para o chatflow do Dify
+   * Envia mensagem para o chatflow do Dify via edge function
    */
   async sendMessage(
     message: string,
@@ -56,56 +62,21 @@ class DifyService {
     files?: any[]
   ): Promise<DifyResponse> {
     try {
-      const config = await this.getConfig();
-      
-      const payload: DifyMessage = {
-        inputs: {},
-        query: message,
-        response_mode: 'blocking',
-        user: userId || 'default-user',
-      };
-
-      if (conversationId) {
-        payload.conversation_id = conversationId;
-      }
-
-      if (files && files.length > 0) {
-        payload.files = files.map(file => ({
-          type: 'image',
-          transfer_method: 'remote_url',
-          url: file.url
-        }));
-      }
-
-      const response = await fetch(`${config.api_url}/chat-messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.api_key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Dify API error: ${response.statusText} - ${errorText}`);
-      }
-
-      const data: DifyResponse = await response.json();
-      
-      // Log de sucesso
-      await supabase.from('system_logs').insert({
-        type: 'info',
-        source: 'dify',
-        message: 'Mensagem enviada com sucesso',
-        details: {
-          message_id: data.message_id,
-          conversation_id: data.conversation_id,
-          tokens_used: data.metadata.usage.total_tokens
+      // Usa edge function para manter API key segura
+      const { data, error } = await supabase.functions.invoke('dify-chat', {
+        body: {
+          message,
+          conversationId,
+          userId: userId || 'default-user',
+          files
         }
       });
-      
-      return data;
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return data as DifyResponse;
     } catch (error) {
       console.error('Erro ao enviar mensagem para Dify:', error);
       

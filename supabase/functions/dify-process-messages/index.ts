@@ -146,7 +146,12 @@ async function processBufferedMessages(
       throw new Error('Dify integration not configured');
     }
 
-    const config = integration.config as { api_url: string; api_key: string };
+    const config = integration.config as { api_url: string };
+    const apiKey = Deno.env.get('DIFY_API_KEY');
+    
+    if (!apiKey) {
+      throw new Error('DIFY_API_KEY not found in secrets');
+    }
 
     // Prepara payload para Dify
     const payload: DifyMessage = {
@@ -171,7 +176,7 @@ async function processBufferedMessages(
     const response = await fetch(`${config.api_url}/chat-messages`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.api_key}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
