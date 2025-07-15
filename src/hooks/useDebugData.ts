@@ -114,6 +114,14 @@ export function useConnectionStatus() {
           .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
           .limit(10);
 
+        // Verifica webhook logs como fallback para sucesso (últimos 10 minutos)
+        const { data: recentWebhookSuccess } = await supabase
+          .from("webhook_logs")
+          .select("*")
+          .eq("response_status", 200)
+          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString())
+          .limit(20);
+
         // Função para verificar status de uma integração
         const getServiceStatus = (serviceType: string) => {
           const integration = integrations?.find(i => i.type === serviceType);
@@ -137,18 +145,22 @@ export function useConnectionStatus() {
         const metaRecentSuccess = recentSuccessLogs?.some(log => 
           log.source === 'whatsapp-send' && log.type === 'success'
         );
+        const metaWebhookSuccess = recentWebhookSuccess?.some(log => 
+          log.source === 'whatsapp-send' && log.response_status === 200
+        );
         const metaRecentError = recentErrors?.some(log => 
           log.source === 'whatsapp-send'
         );
 
         let metaStatus = 'not_configured';
         if (metaIntegration?.active) {
-          if (metaRecentError && !metaRecentSuccess) {
+          const hasSuccess = metaRecentSuccess || metaWebhookSuccess;
+          if (metaRecentError && !hasSuccess) {
             metaStatus = 'error';
-          } else if (metaRecentSuccess || metaIntegration.active) {
+          } else if (hasSuccess) {
             metaStatus = 'connected';
           } else {
-            metaStatus = 'disconnected';
+            metaStatus = 'connected'; // Se integração está ativa e não há erros, assume conectado
           }
         }
 
