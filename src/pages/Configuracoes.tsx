@@ -9,65 +9,67 @@ import {
   Settings, 
   Users, 
   Key, 
-  MessageCircle, 
-  Plus,
-  Edit,
-  Trash2,
-  Check,
-  X
+  Bot,
+  Shield
 } from "lucide-react";
-import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+
+// Import new components
+import AddSellerWizard from "@/components/Config/AddSellerWizard";
+import SellerCard from "@/components/Config/SellerCard";
+import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
 
 interface Seller {
   id: string;
   name: string;
   phone_number: string;
-  whapi_token: string;
-  whapi_webhook: string;
-  active: boolean;
+  webhook_url: string;
+  status: 'active' | 'inactive' | 'testing' | 'error';
   auto_first_message: boolean;
   created_at: string;
+  last_test?: string;
+}
+
+interface RodrigoBot {
+  status: 'active' | 'inactive' | 'testing' | 'error';
+  webhook_url: string;
+  phone_number: string;
+  last_test?: string;
+  messages_sent_today: number;
 }
 
 export default function Configuracoes() {
+  const { toast } = useToast();
+  
   const [sellers, setSellers] = useState<Seller[]>([
     {
       id: '1',
       name: 'Carlos Silva',
       phone_number: '(11) 99999-9999',
-      whapi_token: 'token_carlos_***',
-      whapi_webhook: 'https://api.drystore.com/webhook/carlos',
-      active: true,
+      webhook_url: 'https://api.drystore.com/webhook/seller/carlos-silva',
+      status: 'active',
       auto_first_message: true,
-      created_at: '2024-01-10T00:00:00Z'
+      created_at: '2024-01-10T00:00:00Z',
+      last_test: '2024-01-15T10:30:00Z'
     },
     {
       id: '2',
       name: 'Ana Santos',
       phone_number: '(11) 88888-8888',
-      whapi_token: 'token_ana_***',
-      whapi_webhook: 'https://api.drystore.com/webhook/ana',
-      active: true,
+      webhook_url: 'https://api.drystore.com/webhook/seller/ana-santos',
+      status: 'inactive',
       auto_first_message: false,
-      created_at: '2024-01-10T00:00:00Z'
+      created_at: '2024-01-10T00:00:00Z',
+      last_test: '2024-01-12T14:20:00Z'
     }
   ]);
 
-  const [editingSeller, setEditingSeller] = useState<string | null>(null);
-  const [newSeller, setNewSeller] = useState<Partial<Seller>>({
-    name: '',
-    phone_number: '',
-    whapi_token: '',
-    whapi_webhook: '',
-    active: true,
-    auto_first_message: false
+  const [rodrigoBot, setRodrigoBot] = useState<RodrigoBot>({
+    status: 'active',
+    webhook_url: 'https://api.drystore.com/webhook/rodrigo-bot',
+    phone_number: '(11) 99999-0000',
+    last_test: '2024-01-15T09:00:00Z',
+    messages_sent_today: 23
   });
 
   const [systemSettings, setSystemSettings] = useState({
@@ -77,44 +79,65 @@ export default function Configuracoes() {
     default_greeting: 'Olá! Sou {seller_name} da Drystore. Recebi seu interesse em {product}. Como posso ajudar?'
   });
 
-  const handleSaveNewSeller = () => {
-    if (newSeller.name && newSeller.phone_number) {
-      const seller: Seller = {
-        id: Date.now().toString(),
-        name: newSeller.name,
-        phone_number: newSeller.phone_number,
-        whapi_token: newSeller.whapi_token || '',
-        whapi_webhook: newSeller.whapi_webhook || '',
-        active: newSeller.active || true,
-        auto_first_message: newSeller.auto_first_message || false,
-        created_at: new Date().toISOString()
-      };
-      setSellers([...sellers, seller]);
-      setNewSeller({
-        name: '',
-        phone_number: '',
-        whapi_token: '',
-        whapi_webhook: '',
-        active: true,
-        auto_first_message: false
-      });
+  // Mock function to simulate WHAPI integration testing
+  const mockTestWhapiIntegration = async (token: string): Promise<boolean> => {
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+    return token.length > 10; // Simple validation
+  };
+
+  const handleAddSeller = async (newSeller: any, token: string): Promise<boolean> => {
+    try {
+      // Test integration first
+      const success = await mockTestWhapiIntegration(token);
+      
+      if (success) {
+        // Store token securely (would use Supabase Secrets in real implementation)
+        // For now, just add the seller
+        const seller: Seller = {
+          id: Date.now().toString(),
+          name: newSeller.name,
+          phone_number: newSeller.phone_number,
+          webhook_url: newSeller.webhook_url,
+          status: 'active',
+          auto_first_message: newSeller.auto_first_message,
+          created_at: new Date().toISOString(),
+          last_test: new Date().toISOString()
+        };
+        
+        setSellers([...sellers, seller]);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error adding seller:', error);
+      return false;
     }
   };
 
+  const handleUpdateSeller = (updatedSeller: Seller) => {
+    setSellers(sellers.map(seller => 
+      seller.id === updatedSeller.id ? updatedSeller : seller
+    ));
+  };
+
   const handleDeleteSeller = (id: string) => {
-    setSellers(sellers.filter(s => s.id !== id));
+    setSellers(sellers.filter(seller => seller.id !== id));
   };
 
-  const handleToggleSellerActive = (id: string) => {
-    setSellers(sellers.map(s => 
-      s.id === id ? { ...s, active: !s.active } : s
-    ));
+  const handleTestSellerIntegration = async (id: string, token: string): Promise<boolean> => {
+    return await mockTestWhapiIntegration(token);
   };
 
-  const handleToggleAutoMessage = (id: string) => {
-    setSellers(sellers.map(s => 
-      s.id === id ? { ...s, auto_first_message: !s.auto_first_message } : s
-    ));
+  const handleUpdateRodrigoBot = (data: any) => {
+    setRodrigoBot({
+      ...rodrigoBot,
+      ...data
+    });
+  };
+
+  const handleTestRodrigoBotIntegration = async (token: string): Promise<boolean> => {
+    return await mockTestWhapiIntegration(token);
   };
 
   return (
@@ -123,158 +146,104 @@ export default function Configuracoes() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground mt-1">
-          Gerencie vendedores e configurações do sistema
+          Gerencie vendedores, integração WHAPI e configurações do sistema
         </p>
       </div>
 
       {/* Content */}
       <Tabs defaultValue="sellers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sellers">Vendedores</TabsTrigger>
+          <TabsTrigger value="rodrigo-bot">Rodrigo Bot</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
         </TabsList>
 
         {/* Sellers Tab */}
         <TabsContent value="sellers" className="space-y-6">
-          {/* Add New Seller */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Plus className="h-5 w-5 text-drystore-orange" />
-                <span>Adicionar Vendedor</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Nome</Label>
-                  <Input
-                    id="name"
-                    value={newSeller.name}
-                    onChange={(e) => setNewSeller({...newSeller, name: e.target.value})}
-                    placeholder="Nome do vendedor"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    value={newSeller.phone_number}
-                    onChange={(e) => setNewSeller({...newSeller, phone_number: e.target.value})}
-                    placeholder="(11) 99999-9999"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="token">Token WHAPI</Label>
-                  <Input
-                    id="token"
-                    value={newSeller.whapi_token}
-                    onChange={(e) => setNewSeller({...newSeller, whapi_token: e.target.value})}
-                    placeholder="Token da API (configurar depois)"
-                    disabled
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="webhook">Webhook URL</Label>
-                  <Input
-                    id="webhook"
-                    value={newSeller.whapi_webhook}
-                    onChange={(e) => setNewSeller({...newSeller, whapi_webhook: e.target.value})}
-                    placeholder="URL do webhook (configurar depois)"
-                    disabled
-                  />
-                </div>
-              </div>
-              <div className="flex items-center space-x-4 mt-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="active"
-                    checked={newSeller.active}
-                    onCheckedChange={(checked) => setNewSeller({...newSeller, active: checked})}
-                  />
-                  <Label htmlFor="active">Ativo</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="auto_message"
-                    checked={newSeller.auto_first_message}
-                    onCheckedChange={(checked) => setNewSeller({...newSeller, auto_first_message: checked})}
-                  />
-                  <Label htmlFor="auto_message">Primeira mensagem automática</Label>
-                </div>
-              </div>
-              <Button 
-                onClick={handleSaveNewSeller}
-                className="mt-4"
-                disabled={!newSeller.name || !newSeller.phone_number}
-              >
-                Adicionar Vendedor
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Sellers List */}
+          <AddSellerWizard onAdd={handleAddSeller} />
+          
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="h-5 w-5 text-drystore-orange" />
-                <span>Vendedores Cadastrados</span>
+                <span>Vendedores Cadastrados ({sellers.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Msg. Automática</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sellers.map((seller) => (
-                    <TableRow key={seller.id}>
-                      <TableCell className="font-medium">{seller.name}</TableCell>
-                      <TableCell>{seller.phone_number}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            checked={seller.active}
-                            onCheckedChange={() => handleToggleSellerActive(seller.id)}
-                          />
-                          <span className={seller.active ? 'text-drystore-success' : 'text-drystore-error'}>
-                            {seller.active ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={seller.auto_first_message}
-                          onCheckedChange={() => handleToggleAutoMessage(seller.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button size="sm" variant="outline">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleDeleteSeller(seller.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sellers.map((seller) => (
+                  <SellerCard
+                    key={seller.id}
+                    seller={seller}
+                    onUpdate={handleUpdateSeller}
+                    onDelete={handleDeleteSeller}
+                    onTestIntegration={handleTestSellerIntegration}
+                  />
+                ))}
+              </div>
+              {sellers.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum vendedor cadastrado. Use o formulário acima para adicionar vendedores.
+                </div>
+              )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Rodrigo Bot Tab */}
+        <TabsContent value="rodrigo-bot" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <RodrigoBotCard
+              status={rodrigoBot.status}
+              webhook_url={rodrigoBot.webhook_url}
+              phone_number={rodrigoBot.phone_number}
+              last_test={rodrigoBot.last_test}
+              messages_sent_today={rodrigoBot.messages_sent_today}
+              onUpdate={handleUpdateRodrigoBot}
+              onTestIntegration={handleTestRodrigoBotIntegration}
+            />
+            
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-drystore-orange" />
+                  <span>Configurações do Rodrigo Bot</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="bot-greeting">Mensagem de Boas-vindas</Label>
+                  <textarea
+                    id="bot-greeting"
+                    className="w-full p-3 border rounded-lg resize-none"
+                    rows={3}
+                    defaultValue="Olá! Sou o Rodrigo Bot da Drystore. Estou aqui para ajudar com informações sobre nossos produtos e serviços. Como posso ajudar?"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="bot-timeout">Timeout de Resposta (segundos)</Label>
+                  <Input
+                    id="bot-timeout"
+                    type="number"
+                    defaultValue={10}
+                    min="5"
+                    max="60"
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Switch id="bot-auto-response" defaultChecked />
+                  <Label htmlFor="bot-auto-response">Respostas automáticas ativas</Label>
+                </div>
+                
+                <Button className="w-full">
+                  Salvar Configurações
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Integrations Tab */}
@@ -283,60 +252,78 @@ export default function Configuracoes() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Key className="h-5 w-5 text-drystore-orange" />
-                <span>Integrações Futuras</span>
+                <span>Integrações Externas</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 border rounded-lg opacity-50">
-                  <h3 className="font-medium mb-2">Dify AI</h3>
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-medium mb-2 flex items-center space-x-2">
+                    <Bot className="h-4 w-4" />
+                    <span>Dify AI</span>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Integração com chatbot inteligente
+                    Integração com chatbot inteligente para automatizar conversas
                   </p>
-                  <Input placeholder="API Key do Dify" disabled />
-                  <Button size="sm" className="mt-2" disabled>
-                    Configurar
-                  </Button>
+                  <div className="space-y-2">
+                    <Input placeholder="API Key do Dify" type="password" />
+                    <Input placeholder="URL do Workflow" />
+                    <Button size="sm" className="w-full">
+                      Testar Conexão
+                    </Button>
+                  </div>
                 </div>
                 
-                <div className="p-4 border rounded-lg opacity-50">
-                  <h3 className="font-medium mb-2">WHAPI</h3>
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-medium mb-2 flex items-center space-x-2">
+                    <Key className="h-4 w-4" />
+                    <span>Grok AI</span>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    API para WhatsApp Business
+                    Análise avançada de mensagens e geração de insights
                   </p>
-                  <Input placeholder="Token WHAPI" disabled />
-                  <Button size="sm" className="mt-2" disabled>
-                    Configurar
-                  </Button>
+                  <div className="space-y-2">
+                    <Input placeholder="API Key do Grok" type="password" />
+                    <Button size="sm" className="w-full">
+                      Testar Conexão
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="p-4 border rounded-lg opacity-50">
-                  <h3 className="font-medium mb-2">Grok AI</h3>
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-medium mb-2 flex items-center space-x-2">
+                    <Bot className="h-4 w-4" />
+                    <span>Claude AI</span>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Análise avançada de mensagens
+                    Processamento de linguagem natural e análise de sentimentos
                   </p>
-                  <Input placeholder="API Key do Grok" disabled />
-                  <Button size="sm" className="mt-2" disabled>
-                    Configurar
-                  </Button>
+                  <div className="space-y-2">
+                    <Input placeholder="API Key do Claude" type="password" />
+                    <Button size="sm" className="w-full">
+                      Testar Conexão
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="p-4 border rounded-lg opacity-50">
-                  <h3 className="font-medium mb-2">Claude AI</h3>
+                <div className="p-4 border rounded-lg">
+                  <h3 className="font-medium mb-2 flex items-center space-x-2">
+                    <Shield className="h-4 w-4" />
+                    <span>Webhook Security</span>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Processamento de linguagem natural
+                    Configurações de segurança para webhooks
                   </p>
-                  <Input placeholder="API Key do Claude" disabled />
-                  <Button size="sm" className="mt-2" disabled>
-                    Configurar
-                  </Button>
+                  <div className="space-y-2">
+                    <Input placeholder="Secret Key" type="password" />
+                    <div className="flex items-center space-x-2">
+                      <Switch id="webhook-security" />
+                      <Label htmlFor="webhook-security" className="text-sm">
+                        Verificação de assinatura
+                      </Label>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="text-center p-8 bg-muted rounded-lg">
-                <p className="text-muted-foreground">
-                  As integrações externas serão configuradas em versões futuras da plataforma.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -399,7 +386,7 @@ export default function Configuracoes() {
                     auto_evaluation_enabled: checked
                   })}
                 />
-                <Label htmlFor="auto_evaluation">Avaliação automática de leads</Label>
+                <Label htmlFor="auto_evaluation">Avaliação automática de leads (15 min)</Label>
               </div>
 
               <div>
@@ -419,7 +406,30 @@ export default function Configuracoes() {
                 </p>
               </div>
 
-              <Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="retry-attempts">Tentativas de Retry</Label>
+                  <Input
+                    id="retry-attempts"
+                    type="number"
+                    defaultValue={3}
+                    min="1"
+                    max="10"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="rate-limit">Rate Limit (req/min)</Label>
+                  <Input
+                    id="rate-limit"
+                    type="number"
+                    defaultValue={60}
+                    min="10"
+                    max="300"
+                  />
+                </div>
+              </div>
+
+              <Button className="w-full">
                 Salvar Configurações
               </Button>
             </CardContent>
