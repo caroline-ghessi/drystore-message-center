@@ -4,7 +4,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Sidebar } from "@/components/Layout/Sidebar";
+import { AuthProvider } from "@/components/AuthProvider";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
+import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import MensagensOficial from "./pages/MensagensOficial";
 import MensagensVendedores from "./pages/MensagensVendedores";
@@ -23,75 +26,93 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Login />} />
-          <Route path="/dashboard" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <Dashboard />
-              </main>
-            </div>
-          } />
-          <Route path="/mensagens/oficial" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <MensagensOficial />
-              </main>
-            </div>
-          } />
-          <Route path="/mensagens/vendedores" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <MensagensVendedores />
-              </main>
-            </div>
-          } />
-          <Route path="/leads" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <Leads />
-              </main>
-            </div>
-          } />
-          <Route path="/configuracoes" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <Configuracoes />
-              </main>
-            </div>
-          } />
-          <Route path="/debug" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <Debug />
-              </main>
-            </div>
-          } />
-          <Route path="/visao-dono" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <VisaoDono />
-              </main>
-            </div>
-          } />
-          <Route path="/agentes-ia" element={
-            <div className="flex h-screen">
-              <Sidebar />
-              <main className="flex-1 overflow-auto">
-                <AgentesIA />
-              </main>
-            </div>
-          } />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <Dashboard />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/mensagens/oficial" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <MensagensOficial />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/mensagens/vendedores" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <MensagensVendedores />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/leads" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <Leads />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/configuracoes" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <Configuracoes />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/debug" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <Debug />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/visao-dono" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <VisaoDono />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/agentes-ia" element={
+              <ProtectedRoute>
+                <div className="flex h-screen bg-background">
+                  <Sidebar />
+                  <main className="flex-1 overflow-hidden">
+                    <AgentesIA />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

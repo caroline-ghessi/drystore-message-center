@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
@@ -27,6 +28,7 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const { profile, signOut } = useAuth();
 
   return (
     <div className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -70,14 +72,25 @@ export function Sidebar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="h-8 w-8 bg-sidebar-primary rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-sidebar-primary-foreground">AD</span>
+              <span className="text-sm font-medium text-sidebar-primary-foreground">
+                {profile?.name ? profile.name.charAt(0).toUpperCase() : 'U'}
+              </span>
             </div>
             <div>
-              <p className="text-sm font-medium text-sidebar-foreground">Admin</p>
-              <p className="text-xs text-sidebar-accent">admin@drystore.com</p>
+              <p className="text-sm font-medium text-sidebar-foreground">
+                {profile?.name || 'Usuário'}
+              </p>
+              <p className="text-xs text-sidebar-accent">
+                {profile?.email || 'email@exemplo.com'}
+              </p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="text-sidebar-accent hover:text-sidebar-foreground">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-sidebar-accent hover:text-sidebar-foreground"
+            onClick={signOut}
+          >
             <LogOut className="h-4 w-4" />
           </Button>
         </div>
