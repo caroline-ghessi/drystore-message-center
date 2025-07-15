@@ -144,17 +144,18 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
-        <p className="text-muted-foreground mt-1">
-          Gerencie vendedores, integração WHAPI e configurações do sistema
-        </p>
-      </div>
+    <div className="h-full overflow-y-auto">
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
+          <p className="text-muted-foreground mt-1">
+            Gerencie vendedores, integração WHAPI e configurações do sistema
+          </p>
+        </div>
 
-      {/* Content */}
-      <Tabs defaultValue="sellers" className="space-y-6">
+        {/* Content */}
+        <Tabs defaultValue="sellers" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="sellers">Vendedores</TabsTrigger>
           <TabsTrigger value="profile-details">Perfil Detalhado</TabsTrigger>
@@ -488,6 +489,7 @@ export default function Configuracoes() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

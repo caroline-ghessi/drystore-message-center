@@ -127,9 +127,9 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           {/* Dados Pessoais */}
           <Card>
             <CardHeader>
@@ -138,9 +138,9 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Dados Pessoais</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <div className="flex items-center space-x-4">
-                <Avatar className="w-16 h-16">
+                <Avatar className="w-12 h-12">
                   <AvatarImage src={form.watch("avatar_url")} />
                   <AvatarFallback>
                     {form.watch("name")?.charAt(0)?.toUpperCase() || "?"}
@@ -152,7 +152,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="name"
@@ -234,14 +234,14 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Especialidades em Produtos</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {productCategories.map((category) => {
                   const specialty = specialties.find(s => s.product_category_id === category.id);
                   const isSelected = !!specialty;
                   
                   return (
-                    <div key={category.id} className="border rounded-lg p-3 space-y-2">
+                    <div key={category.id} className="border rounded-lg p-2 space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">{category.name}</Label>
                         <Switch
@@ -280,7 +280,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Habilidades</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                 <Input
                   placeholder="Nome da habilidade"
@@ -348,8 +348,8 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Configurações de Trabalho</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormField
                   control={form.control}
                   name="personality_type"
@@ -423,7 +423,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
             </CardContent>
           </Card>
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onSuccess?.()}>
               Cancelar
             </Button>
