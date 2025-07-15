@@ -16,6 +16,7 @@ import {
 import WhatsAppTester from "@/components/Debug/WhatsAppTester";
 import LogViewer from "@/components/Debug/LogViewer";
 import { DifyChatTest } from "@/components/Debug/DifyChatTest";
+import { DifyChatTestWithFiles } from "@/components/Debug/DifyChatTestWithFiles";
 import { useSystemLogs, useConnectionStatus } from "@/hooks/useDebugData";
 
 export default function Debug() {
@@ -110,6 +111,7 @@ export default function Debug() {
 
         <TabsContent value="dify" className="space-y-4">
           <DifyChatTest />
+          <DifyChatTestWithFiles />
         </TabsContent>
 
           <TabsContent value="logs" className="space-y-4">

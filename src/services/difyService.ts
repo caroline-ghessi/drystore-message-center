@@ -1,17 +1,22 @@
 import { supabase } from '@/integrations/supabase/client';
 
+interface DifyFile {
+  type: 'document' | 'image' | 'audio' | 'video' | 'other';
+  transfer_method: 'remote_url' | 'local_file';
+  url?: string;
+  upload_file_id?: string;
+}
+
 interface DifyMessage {
-  inputs: Record<string, any>;
+  inputs: {
+    arquivo?: DifyFile[];
+    [key: string]: any;
+  };
   query: string;
   response_mode: 'blocking' | 'streaming';
   conversation_id?: string;
   user: string;
-  files?: Array<{
-    type: string;
-    transfer_method: string;
-    url?: string;
-    upload_file_id?: string;
-  }>;
+  files?: DifyFile[];
 }
 
 interface DifyResponse {
@@ -53,6 +58,29 @@ class DifyService {
   }
 
   /**
+   * Detecta o tipo de arquivo baseado no MIME type ou URL
+   */
+  private getFileType(mimeTypeOrUrl: string): DifyFile['type'] {
+    const mimeType = mimeTypeOrUrl.toLowerCase();
+    
+    if (mimeType.includes('image/') || mimeType.includes('.jpg') || mimeType.includes('.png') || mimeType.includes('.gif') || mimeType.includes('.webp')) {
+      return 'image';
+    }
+    if (mimeType.includes('audio/') || mimeType.includes('.mp3') || mimeType.includes('.m4a') || mimeType.includes('.wav') || mimeType.includes('.amr')) {
+      return 'audio';
+    }
+    if (mimeType.includes('video/') || mimeType.includes('.mp4') || mimeType.includes('.mov') || mimeType.includes('.mpeg') || mimeType.includes('.webm')) {
+      return 'video';
+    }
+    if (mimeType.includes('pdf') || mimeType.includes('document') || mimeType.includes('msword') || 
+        mimeType.includes('sheet') || mimeType.includes('presentation') || mimeType.includes('.doc') || 
+        mimeType.includes('.xls') || mimeType.includes('.ppt')) {
+      return 'document';
+    }
+    return 'other';
+  }
+
+  /**
    * Envia mensagem para o chatflow do Dify via edge function
    */
   async sendMessage(
@@ -86,6 +114,52 @@ class DifyService {
         source: 'dify',
         message: 'Erro ao enviar mensagem',
         details: { error: error.message }
+      });
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Envia mensagem com arquivos para o Dify
+   */
+  async sendMessageWithFiles(
+    message: string,
+    fileUrls: string[],
+    conversationId?: string,
+    userId?: string
+  ): Promise<DifyResponse> {
+    try {
+      const difyFiles: DifyFile[] = fileUrls.map(url => ({
+        type: this.getFileType(url),
+        transfer_method: 'remote_url',
+        url: url
+      }));
+
+      const { data, error } = await supabase.functions.invoke('dify-chat', {
+        body: {
+          message,
+          conversationId,
+          userId: userId || 'default-user',
+          files: difyFiles,
+          hasFiles: true
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return data as DifyResponse;
+    } catch (error) {
+      console.error('Erro ao enviar mensagem com arquivos para Dify:', error);
+      
+      // Log de erro
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'dify',
+        message: 'Erro ao enviar mensagem com arquivos',
+        details: { error: error.message, fileCount: fileUrls.length }
       });
       
       throw error;

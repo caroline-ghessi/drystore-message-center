@@ -13,6 +13,7 @@ interface ChatMessage {
   content: string;
   streaming?: boolean;
   timestamp: Date;
+  files?: string[];
 }
 
 export const useDifyChat = (options: UseDifyChatOptions = {}) => {
@@ -45,6 +46,37 @@ export const useDifyChat = (options: UseDifyChatOptions = {}) => {
       return response;
     } catch (error) {
       toast.error('Erro ao enviar mensagem para o bot');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, options.userId]);
+
+  const sendMessageWithFiles = useCallback(async (message: string, fileUrls: string[]) => {
+    setLoading(true);
+    try {
+      const response = await difyService.sendMessageWithFiles(
+        message,
+        fileUrls,
+        conversationId,
+        options.userId
+      );
+
+      // Atualiza o ID da conversa se for uma nova conversa
+      if (!conversationId && response.conversation_id) {
+        setConversationId(response.conversation_id);
+      }
+
+      // Adiciona mensagens ao estado local
+      setMessages(prev => [
+        ...prev,
+        { type: 'user', content: message, files: fileUrls.map(url => url.split('/').pop() || 'arquivo'), timestamp: new Date() },
+        { type: 'bot', content: response.answer, timestamp: new Date() }
+      ]);
+
+      return response;
+    } catch (error) {
+      toast.error('Erro ao enviar mensagem com arquivos');
       throw error;
     } finally {
       setLoading(false);
@@ -128,6 +160,7 @@ export const useDifyChat = (options: UseDifyChatOptions = {}) => {
     conversationId,
     messages,
     sendMessage,
+    sendMessageWithFiles,
     sendMessageStreaming,
     clearConversation,
     testConnection

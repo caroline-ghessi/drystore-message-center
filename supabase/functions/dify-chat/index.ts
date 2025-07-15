@@ -47,7 +47,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { message, conversationId, userId, files } = await req.json();
+    const { message, conversationId, userId, files, hasFiles } = await req.json();
 
     // Busca configuração do Dify
     const { data: integration } = await supabase
@@ -76,16 +76,14 @@ serve(async (req) => {
       user: userId || 'default-user',
     };
 
-    if (conversationId) {
-      payload.conversation_id = conversationId;
+    // Adicionar arquivos se houver
+    if (hasFiles && files && files.length > 0) {
+      payload.inputs.arquivo = files; // Usando a variável 'arquivo' configurada no Dify
+      console.log('Enviando arquivos para Dify:', files);
     }
 
-    if (files && files.length > 0) {
-      payload.files = files.map((file: any) => ({
-        type: 'image',
-        transfer_method: 'remote_url',
-        url: file.url
-      }));
+    if (conversationId) {
+      payload.conversation_id = conversationId;
     }
 
     // Envia para Dify
