@@ -5,18 +5,25 @@ import { Tables } from "@/integrations/supabase/types";
 type Seller = Tables<"sellers">;
 
 export function useSellers() {
-  return useQuery({
+  const { data: sellers = [], isLoading, error } = useQuery({
     queryKey: ["sellers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sellers")
         .select("*")
+        .eq("active", true)
         .order("name");
         
       if (error) throw error;
       return data as Seller[];
     },
   });
+
+  return {
+    sellers,
+    isLoading,
+    error
+  };
 }
 
 export function useActiveSellers() {

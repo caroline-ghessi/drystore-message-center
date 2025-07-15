@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { ConversationSummaryDialog } from "@/components/WhatsApp/ConversationSummaryDialog";
 import { 
   Search, 
   Filter, 
@@ -15,9 +17,12 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle2,
-  XCircle
+  XCircle,
+  MessageSquare
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLeads, useMarkSale, useLeadStats } from "@/hooks/useLeads";
+import { useSellers } from "@/hooks/useSellers";
 import { 
   Table,
   TableBody,
@@ -34,102 +39,35 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface Lead {
-  id: string;
-  customer_name: string;
-  phone_number: string;
-  seller_name: string;
-  product_interest: string;
-  summary: string;
-  sent_at: string;
-  status: 'attending' | 'finished' | 'sold' | 'lost';
-  generated_sale: boolean;
-  last_contact: string;
-  priority: 'high' | 'medium' | 'low';
-  estimated_value: number;
-}
 
 export default function Leads() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sellerFilter, setSellerFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  // Hooks para dados reais
+  const { leads, isLoading: leadsLoading } = useLeads();
+  const { sellers } = useSellers();
+  const markSaleMutation = useMarkSale();
+  const stats = useLeadStats(leads);
 
-  // Mock data - substituir por dados reais do Supabase
-  const [leads, setLeads] = useState<Lead[]>([
-    {
-      id: '1',
-      customer_name: 'João Silva',
-      phone_number: '(11) 99999-9999',
-      seller_name: 'Carlos Silva',
-      product_interest: 'Secadores Industriais',
-      summary: 'Cliente interessado em linha completa para secagem industrial. Empresa média porte.',
-      sent_at: '2024-01-15T10:30:00Z',
-      status: 'sold',
-      generated_sale: true,
-      last_contact: '2024-01-15T14:30:00Z',
-      priority: 'high',
-      estimated_value: 85000
-    },
-    {
-      id: '2',
-      customer_name: 'Maria Santos',
-      phone_number: '(11) 88888-8888',
-      seller_name: 'Ana Santos',
-      product_interest: 'Câmaras de Secagem',
-      summary: 'Necessita de solução para pequeno negócio de alimentos desidratados.',
-      sent_at: '2024-01-15T09:45:00Z',
-      status: 'attending',
-      generated_sale: false,
-      last_contact: '2024-01-15T16:20:00Z',
-      priority: 'medium',
-      estimated_value: 35000
-    },
-    {
-      id: '3',
-      customer_name: 'Pedro Costa',
-      phone_number: '(11) 77777-7777',
-      seller_name: 'Carlos Silva',
-      product_interest: 'Estufas Profissionais',
-      summary: 'Interessado em equipamentos para padaria industrial.',
-      sent_at: '2024-01-15T08:20:00Z',
-      status: 'finished',
-      generated_sale: false,
-      last_contact: '2024-01-15T12:45:00Z',
-      priority: 'low',
-      estimated_value: 25000
-    },
-    {
-      id: '4',
-      customer_name: 'Ana Oliveira',
-      phone_number: '(11) 66666-6666',
-      seller_name: 'João Costa',
-      product_interest: 'Fornos de Secagem',
-      summary: 'Empresa farmacêutica buscando equipamentos de secagem para medicamentos.',
-      sent_at: '2024-01-14T16:30:00Z',
-      status: 'lost',
-      generated_sale: false,
-      last_contact: '2024-01-14T18:15:00Z',
-      priority: 'high',
-      estimated_value: 120000
-    }
-  ]);
-
-  const sellers = ['Carlos Silva', 'Ana Santos', 'João Costa', 'Maria Oliveira'];
 
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = lead.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          lead.phone_number.includes(searchTerm) ||
-                         lead.product_interest.toLowerCase().includes(searchTerm.toLowerCase());
+                         (lead.product_interest || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
     const matchesSeller = sellerFilter === 'all' || lead.seller_name === sellerFilter;
-    const matchesPriority = priorityFilter === 'all' || lead.priority === priorityFilter;
     
     let matchesDate = true;
-    if (dateFilter !== 'all') {
+    if (dateFilter !== 'all' && lead.sent_at) {
       const leadDate = new Date(lead.sent_at);
       const now = new Date();
       const diffDays = Math.floor((now.getTime() - leadDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -147,49 +85,43 @@ export default function Leads() {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesSeller && matchesPriority && matchesDate;
+    return matchesSearch && matchesStatus && matchesSeller && matchesDate;
   });
 
-  const stats = {
-    total: leads.length,
-    sold: leads.filter(l => l.status === 'sold').length,
-    attending: leads.filter(l => l.status === 'attending').length,
-    conversionRate: Math.round((leads.filter(l => l.generated_sale).length / leads.length) * 100),
-    totalValue: leads.filter(l => l.generated_sale).reduce((sum, l) => sum + l.estimated_value, 0),
-    avgTicket: leads.filter(l => l.generated_sale).length > 0 
-      ? Math.round(leads.filter(l => l.generated_sale).reduce((sum, l) => sum + l.estimated_value, 0) / leads.filter(l => l.generated_sale).length)
-      : 0
-  };
 
   const handleMarkSale = (leadId: string) => {
-    setLeads(prev => 
-      prev.map(lead => 
-        lead.id === leadId 
-          ? { ...lead, status: 'sold' as const, generated_sale: true }
-          : lead
-      )
-    );
-    
-    toast({
-      title: "Venda Marcada",
-      description: "Lead marcado como venda realizada com sucesso",
-    });
+    markSaleMutation.mutate({ leadId });
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-drystore-error';
-      case 'medium':
-        return 'text-drystore-warning';
-      case 'low':
-        return 'text-drystore-success';
-      default:
-        return 'text-muted-foreground';
+  const handleViewSummary = (conversationId: string | null) => {
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+      setSummaryDialogOpen(true);
+    } else {
+      toast({
+        title: "Conversa não encontrada",
+        description: "Não foi possível encontrar a conversa associada a este lead.",
+        variant: "destructive"
+      });
     }
   };
 
-  const getTimeSinceContact = (dateString: string) => {
+  const handleOpenSellerChat = (lead: any) => {
+    if (lead.seller_id) {
+      // Navegar para a página de mensagens dos vendedores com contexto
+      navigate(`/mensagens/vendedores?seller=${lead.seller_id}&customer=${lead.customer_name}`);
+    } else {
+      toast({
+        title: "Vendedor não encontrado",
+        description: "Não foi possível encontrar o vendedor associado a este lead.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getTimeSinceSent = (dateString: string | null) => {
+    if (!dateString) return 'Data não disponível';
+    
     const date = new Date(dateString);
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
@@ -201,7 +133,9 @@ export default function Leads() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Data não disponível';
+    
     return new Date(dateString).toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -210,6 +144,16 @@ export default function Leads() {
       minute: '2-digit'
     });
   };
+
+  if (leadsLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="text-center">
+          <p>Carregando leads...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -314,7 +258,7 @@ export default function Leads() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -345,20 +289,8 @@ export default function Leads() {
               <SelectContent>
                 <SelectItem value="all">Todos os Vendedores</SelectItem>
                 {sellers.map(seller => (
-                  <SelectItem key={seller} value={seller}>{seller}</SelectItem>
+                  <SelectItem key={seller.id} value={seller.name}>{seller.name}</SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Prioridades</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="medium">Média</SelectItem>
-                <SelectItem value="low">Baixa</SelectItem>
               </SelectContent>
             </Select>
             
@@ -389,10 +321,9 @@ export default function Leads() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead>Vendedor</TableHead>
-                <TableHead>Produto Interesse</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Valor Est.</TableHead>
-                <TableHead>Último Contato</TableHead>
+                <TableHead>Produto/Resumo</TableHead>
+                <TableHead>Enviado em</TableHead>
+                <TableHead>Valor Venda</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
@@ -402,50 +333,62 @@ export default function Leads() {
                 <TableRow key={lead.id} className="hover:bg-muted/50">
                   <TableCell>
                     <div>
-                      <p className="font-medium">{lead.customer_name}</p>
+                      <button 
+                        onClick={() => handleOpenSellerChat(lead)}
+                        className="font-medium text-drystore-orange hover:underline cursor-pointer"
+                      >
+                        {lead.customer_name}
+                      </button>
                       {lead.generated_sale && (
-                        <span className="text-xs bg-drystore-success/10 text-drystore-success px-2 py-1 rounded">
+                        <span className="text-xs bg-drystore-success/10 text-drystore-success px-2 py-1 rounded block mt-1">
                           Venda realizada
                         </span>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>{lead.phone_number}</TableCell>
-                  <TableCell>{lead.seller_name}</TableCell>
+                  <TableCell>{lead.seller_name || 'Não atribuído'}</TableCell>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{lead.product_interest}</p>
+                      <p className="font-medium">{lead.product_interest || 'Não especificado'}</p>
                       <p className="text-sm text-muted-foreground truncate max-w-xs">
-                        {lead.summary}
+                        {lead.summary || 'Sem resumo disponível'}
                       </p>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <div className={`h-2 w-2 rounded-full ${getPriorityColor(lead.priority).replace('text-', 'bg-')}`}></div>
-                      <span className={`text-sm capitalize ${getPriorityColor(lead.priority)}`}>
-                        {lead.priority === 'high' ? 'Alta' : lead.priority === 'medium' ? 'Média' : 'Baixa'}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">R$ {(lead.estimated_value / 1000).toFixed(0)}k</span>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>{getTimeSinceContact(lead.last_contact)}</span>
+                      <span>{getTimeSinceSent(lead.sent_at)}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={lead.status} />
+                    <span className="font-medium">
+                      {lead.sale_value 
+                        ? `R$ ${(lead.sale_value / 1000).toFixed(0)}k` 
+                        : 'Não informado'
+                      }
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={(lead.status || 'unknown') as any} />
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleViewSummary(lead.conversation_id)}
+                        title="Ver resumo da conversa"
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleOpenSellerChat(lead)}
+                        title="Abrir conversa com vendedor"
+                      >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
                       {lead.status === 'attending' && !lead.generated_sale && (
@@ -454,6 +397,8 @@ export default function Leads() {
                           variant="outline"
                           onClick={() => handleMarkSale(lead.id)}
                           className="text-drystore-success hover:bg-drystore-success/10"
+                          title="Marcar como venda"
+                          disabled={markSaleMutation.isPending}
                         >
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>
@@ -466,6 +411,13 @@ export default function Leads() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal de Resumo da Conversa */}
+      <ConversationSummaryDialog
+        open={summaryDialogOpen}
+        onOpenChange={setSummaryDialogOpen}
+        conversationId={selectedConversationId}
+      />
     </div>
   );
 }

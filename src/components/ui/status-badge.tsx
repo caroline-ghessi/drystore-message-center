@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type StatusType = 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'sold' | 'lost' | 'attending' | 'fallback_active';
+export type StatusType = 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'sold' | 'lost' | 'attending' | 'fallback_active' | 'unknown';
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -40,11 +40,15 @@ const statusConfig = {
   fallback_active: {
     label: 'Modo Fallback',
     className: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
+  },
+  unknown: {
+    label: 'Status Desconhecido',
+    className: 'bg-muted text-muted-foreground border-muted-foreground/20'
   }
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.unknown;
   
   return (
     <Badge 
