@@ -102,9 +102,13 @@ export default function Debug() {
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="whatsapp" className="space-y-4">
-            <WhatsAppTester />
-          </TabsContent>
+        <TabsContent value="whatsapp" className="space-y-4">
+          <WhatsAppTester />
+        </TabsContent>
+
+        <TabsContent value="dify" className="space-y-4">
+          <DifyChatTest />
+        </TabsContent>
 
           <TabsContent value="logs" className="space-y-4">
             <LogViewer />
