@@ -17,6 +17,7 @@ import WhatsAppTester from "@/components/Debug/WhatsAppTester";
 import LogViewer from "@/components/Debug/LogViewer";
 import { DifyChatTest } from "@/components/Debug/DifyChatTest";
 import { DifyChatTestWithFiles } from "@/components/Debug/DifyChatTestWithFiles";
+import { AIAgentTest } from "@/components/Debug/AIAgentTest";
 import { useSystemLogs, useConnectionStatus } from "@/hooks/useDebugData";
 
 export default function Debug() {
@@ -97,9 +98,10 @@ export default function Debug() {
       {/* Content */}
       <div className="w-full">
         <Tabs defaultValue="whatsapp" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify Chat</TabsTrigger>
+          <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
           <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
           <TabsTrigger value="connections">Status Conexões</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
@@ -112,6 +114,10 @@ export default function Debug() {
         <TabsContent value="dify" className="space-y-4">
           <DifyChatTest />
           <DifyChatTestWithFiles />
+        </TabsContent>
+
+        <TabsContent value="ai-agents" className="space-y-4">
+          <AIAgentTest />
         </TabsContent>
 
           <TabsContent value="logs" className="space-y-4">

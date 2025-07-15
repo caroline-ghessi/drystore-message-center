@@ -43,10 +43,11 @@ const AgentesIA = () => {
   };
 
   const availableModels = [
-    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Rápido)' },
-    { value: 'gpt-4o', label: 'GPT-4o (Avançado)' },
     { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku (Rápido)' },
-    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Inteligente)' }
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Inteligente)' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus (Máxima Qualidade)' },
+    { value: 'grok-beta', label: 'Grok (Criativo)' },
+    { value: 'grok-vision-beta', label: 'Grok Vision (Multimodal)' }
   ];
 
   useEffect(() => {
