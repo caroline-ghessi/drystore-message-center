@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
+import { useAIAgents } from "@/hooks/useAIAgents";
 import { 
   Brain, 
   BarChart3, 
@@ -22,6 +22,7 @@ interface ChatMessage {
 }
 
 export default function VisaoDono() {
+  const { getOwnerInsightsPrompt } = useAIAgents();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -72,8 +73,12 @@ export default function VisaoDono() {
   };
 
   const generateResponse = (question: string) => {
+    // Usa o prompt configurável se disponível
+    const systemPrompt = getOwnerInsightsPrompt();
+    
+    // Simula uma resposta baseada no prompt personalizado
     const responses: Record<string, string> = {
-      'negociações': 'Atualmente temos 15 negociações em andamento: 5 com alto potencial (>R$ 50k), 7 médias (R$ 20k-50k) e 3 pequenas (<R$ 20k). Destaque para João Silva (R$ 80k - telhas shingle) e Maria Santos (R$ 65k - sistema completo de secagem).',
+      'negociações': `Seguindo o contexto: "${systemPrompt.substring(0, 50)}..." - Atualmente temos 15 negociações em andamento: 5 com alto potencial (>R$ 50k), 7 médias (R$ 20k-50k) e 3 pequenas (<R$ 20k). Destaque para João Silva (R$ 80k - telhas shingle) e Maria Santos (R$ 65k - sistema completo de secagem).`,
       'performance': 'Carlos Silva lidera esta semana com 12 leads atendidos, taxa de conversão de 67% e R$ 180k em vendas. Ana Santos está em segundo com 60% de conversão e R$ 145k em vendas.',
       'objeções': 'Principais objeções: 1) Preço alto (34%), 2) Prazo de entrega (23%), 3) Dúvidas sobre qualidade (18%), 4) Concorrência (15%). Recomendo treinamento sobre ROI para vendedores.',
       'vendas': 'Vendas via WhatsApp este mês: R$ 850k (65% do total). Crescimento de 28% vs mês anterior. Conversão média: 23% (acima da meta de 20%).',
@@ -89,7 +94,7 @@ export default function VisaoDono() {
       }
     }
     
-    return 'Baseado nos dados atuais, posso analisar essa informação para você. Poderia ser mais específico sobre qual aspecto do negócio você gostaria de analisar? Tenho acesso a dados de performance, leads, vendas, tempo de resposta e muito mais.';
+    return `${systemPrompt} - Baseado nos dados atuais, posso analisar essa informação para você. Poderia ser mais específico sobre qual aspecto do negócio você gostaria de analisar?`;
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

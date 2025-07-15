@@ -12,6 +12,7 @@ import Leads from "./pages/Leads";
 import Configuracoes from "./pages/Configuracoes";
 import Debug from "./pages/Debug";
 import VisaoDono from "./pages/VisaoDono";
+import AgentesIA from "./pages/AgentesIA";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,14 @@ const App = () => (
               <Sidebar />
               <main className="flex-1 overflow-auto">
                 <VisaoDono />
+              </main>
+            </div>
+          } />
+          <Route path="/agentes-ia" element={
+            <div className="flex h-screen">
+              <Sidebar />
+              <main className="flex-1 overflow-auto">
+                <AgentesIA />
               </main>
             </div>
           } />

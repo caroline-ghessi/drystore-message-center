@@ -8,7 +8,8 @@ import {
   Bug,
   Building2,
   LogOut,
-  Brain
+  Brain,
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Acompanhar Vendedores', href: '/mensagens/vendedores', icon: Users },
   { name: 'Leads', href: '/leads', icon: Target },
   { name: 'Visão do Dono', href: '/visao-dono', icon: Brain },
+  { name: 'Agentes de IA', href: '/agentes-ia', icon: Bot },
   { name: 'Configurações', href: '/configuracoes', icon: Settings },
   { name: 'Debug', href: '/debug', icon: Bug },
 ];
