@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLeads, useMarkSale, useLeadStats } from "@/hooks/useLeads";
 import { useSellers } from "@/hooks/useSellers";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Table,
   TableBody,
@@ -52,8 +53,8 @@ export default function Leads() {
   const navigate = useNavigate();
   
   // Hooks para dados reais
-  const { leads, isLoading: leadsLoading } = useLeads();
-  const { sellers } = useSellers();
+  const { leads = [], isLoading: leadsLoading } = useLeads();
+  const { sellers = [], isLoading: sellersLoading } = useSellers();
   const markSaleMutation = useMarkSale();
   const stats = useLeadStats(leads);
 
@@ -145,12 +146,24 @@ export default function Leads() {
     });
   };
 
-  if (leadsLoading) {
+  if (leadsLoading || sellersLoading) {
     return (
       <div className="p-6 space-y-6">
-        <div className="text-center">
-          <p>Carregando leads...</p>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+        <Skeleton className="h-96" />
       </div>
     );
   }
@@ -288,7 +301,7 @@ export default function Leads() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Vendedores</SelectItem>
-                {sellers.map(seller => (
+                {(sellers || []).map(seller => (
                   <SelectItem key={seller.id} value={seller.name}>{seller.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -329,84 +342,100 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLeads.map((lead) => (
-                <TableRow key={lead.id} className="hover:bg-muted/50">
-                  <TableCell>
-                    <div>
-                      <button 
-                        onClick={() => handleOpenSellerChat(lead)}
-                        className="font-medium text-drystore-orange hover:underline cursor-pointer"
-                      >
-                        {lead.customer_name}
-                      </button>
-                      {lead.generated_sale && (
-                        <span className="text-xs bg-drystore-success/10 text-drystore-success px-2 py-1 rounded block mt-1">
-                          Venda realizada
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{lead.phone_number}</TableCell>
-                  <TableCell>{lead.seller_name || 'Não atribuído'}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{lead.product_interest || 'Não especificado'}</p>
-                      <p className="text-sm text-muted-foreground truncate max-w-xs">
-                        {lead.summary || 'Sem resumo disponível'}
+              {(filteredLeads || []).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <div className="text-center">
+                      <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <p className="text-muted-foreground">
+                        {leads.length === 0 
+                          ? "Nenhum lead encontrado. Leads aparecerão aqui quando forem transferidos para vendedores."
+                          : "Nenhum lead corresponde aos filtros aplicados."
+                        }
                       </p>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-1 text-sm text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>{getTimeSinceSent(lead.sent_at)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">
-                      {lead.sale_value 
-                        ? `R$ ${(lead.sale_value / 1000).toFixed(0)}k` 
-                        : 'Não informado'
-                      }
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={(lead.status || 'unknown') as any} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleViewSummary(lead.conversation_id)}
-                        title="Ver resumo da conversa"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleOpenSellerChat(lead)}
-                        title="Abrir conversa com vendedor"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                      {lead.status === 'attending' && !lead.generated_sale && (
+                </TableRow>
+              ) : (
+                (filteredLeads || []).map((lead) => (
+                  <TableRow key={lead.id} className="hover:bg-muted/50">
+                    <TableCell>
+                      <div>
+                        <button 
+                          onClick={() => handleOpenSellerChat(lead)}
+                          className="font-medium text-drystore-orange hover:underline cursor-pointer"
+                        >
+                          {lead.customer_name}
+                        </button>
+                        {lead.generated_sale && (
+                          <span className="text-xs bg-drystore-success/10 text-drystore-success px-2 py-1 rounded block mt-1">
+                            Venda realizada
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{lead.phone_number}</TableCell>
+                    <TableCell>{lead.seller_name || 'Não atribuído'}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{lead.product_interest || 'Não especificado'}</p>
+                        <p className="text-sm text-muted-foreground truncate max-w-xs">
+                          {lead.summary || 'Sem resumo disponível'}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        <span>{getTimeSinceSent(lead.sent_at)}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">
+                        {lead.sale_value 
+                          ? `R$ ${(lead.sale_value / 1000).toFixed(0)}k` 
+                          : 'Não informado'
+                        }
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={(lead.status || 'unknown') as any} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
                         <Button 
                           size="sm" 
                           variant="outline"
-                          onClick={() => handleMarkSale(lead.id)}
-                          className="text-drystore-success hover:bg-drystore-success/10"
-                          title="Marcar como venda"
-                          disabled={markSaleMutation.isPending}
+                          onClick={() => handleViewSummary(lead.conversation_id)}
+                          title="Ver resumo da conversa"
                         >
-                          <CheckCircle2 className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleOpenSellerChat(lead)}
+                          title="Abrir conversa com vendedor"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        {lead.status === 'attending' && !lead.generated_sale && (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleMarkSale(lead.id)}
+                            className="text-drystore-success hover:bg-drystore-success/10"
+                            title="Marcar como venda"
+                            disabled={markSaleMutation.isPending}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
