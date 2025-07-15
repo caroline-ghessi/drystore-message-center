@@ -85,7 +85,7 @@ serve(async (req) => {
     
     console.log('Graph API response:', response.status, responseData);
 
-    // Log the API call
+    // Log the API call in webhook_logs
     await supabase.from('webhook_logs').insert({
       source: 'whatsapp-send',
       method: 'POST',
@@ -99,6 +99,19 @@ serve(async (req) => {
     if (!response.ok) {
       throw new Error(`Meta Graph API error: ${response.status} - ${JSON.stringify(responseData)}`);
     }
+
+    // Log success in system_logs
+    await supabase.from('system_logs').insert({
+      type: 'success',
+      source: 'whatsapp-send',
+      message: `WhatsApp message sent successfully to ${to}`,
+      details: { 
+        message_id: responseData.messages?.[0]?.id,
+        to: to,
+        type: type,
+        response_status: response.status
+      }
+    });
 
     // If sending to a conversation, save the message
     if (responseData.messages?.[0]?.id) {

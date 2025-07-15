@@ -85,29 +85,82 @@ export function useConnectionStatus() {
     queryKey: ["connection_status"],
     queryFn: async () => {
       try {
-        // Verifica se a integração Meta está configurada
+        // Verifica integrações configuradas
         const { data: integrations } = await supabase
           .from("integrations")
           .select("*")
-          .eq("type", "meta")
           .eq("active", true);
 
-        const metaActive = integrations && integrations.length > 0;
+        // Verifica vendedores com WHAPI configurado
+        const { data: sellers } = await supabase
+          .from("sellers")
+          .select("whapi_token")
+          .eq("active", true)
+          .not("whapi_token", "is", null);
 
-        // Verifica logs recentes de erro
+        // Verifica logs recentes de sucesso (últimos 10 minutos)
+        const { data: recentSuccessLogs } = await supabase
+          .from("system_logs")
+          .select("*")
+          .eq("type", "success")
+          .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString())
+          .limit(20);
+
+        // Verifica logs recentes de erro (últimos 5 minutos)
         const { data: recentErrors } = await supabase
           .from("system_logs")
           .select("*")
           .eq("type", "error")
-          .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Últimos 5 minutos
-          .limit(5);
+          .gte("created_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
+          .limit(10);
+
+        // Função para verificar status de uma integração
+        const getServiceStatus = (serviceType: string) => {
+          const integration = integrations?.find(i => i.type === serviceType);
+          if (!integration) return 'not_configured';
+          
+          const hasRecentSuccess = recentSuccessLogs?.some(log => 
+            log.source?.includes(serviceType) || log.message?.includes(serviceType)
+          );
+          const hasRecentError = recentErrors?.some(log => 
+            log.source?.includes(serviceType) || log.message?.includes(serviceType)
+          );
+          
+          if (hasRecentError && !hasRecentSuccess) return 'error';
+          if (integration.active && hasRecentSuccess) return 'connected';
+          if (integration.active) return 'connected';
+          return 'disconnected';
+        };
+
+        // Status específico para Meta WhatsApp
+        const metaIntegration = integrations?.find(i => i.type === 'meta');
+        const metaRecentSuccess = recentSuccessLogs?.some(log => 
+          log.source === 'whatsapp-send' && log.type === 'success'
+        );
+        const metaRecentError = recentErrors?.some(log => 
+          log.source === 'whatsapp-send'
+        );
+
+        let metaStatus = 'not_configured';
+        if (metaIntegration?.active) {
+          if (metaRecentError && !metaRecentSuccess) {
+            metaStatus = 'error';
+          } else if (metaRecentSuccess || metaIntegration.active) {
+            metaStatus = 'connected';
+          } else {
+            metaStatus = 'disconnected';
+          }
+        }
+
+        // Status para WHAPI baseado em vendedores configurados
+        const whapiStatus = sellers && sellers.length > 0 ? 'connected' : 'not_configured';
 
         return {
-          meta_whatsapp: metaActive ? 'connected' : 'disconnected',
-          whapi: 'connected', // Mock por enquanto
-          dify: 'connected', // Mock por enquanto
-          grok: 'connected', // Mock por enquanto
-          claude: 'connected', // Mock por enquanto
+          meta_whatsapp: metaStatus,
+          whapi: whapiStatus,
+          dify: getServiceStatus('dify'),
+          grok: getServiceStatus('grok'),
+          claude: getServiceStatus('claude'),
           recent_errors: recentErrors || [],
         };
       } catch (error) {

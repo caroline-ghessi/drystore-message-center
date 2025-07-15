@@ -59,6 +59,8 @@ export default function WhatsAppTester() {
         return <XCircle className="h-4 w-4 text-red-600" />;
       case 'error':
         return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      case 'not_configured':
+        return <AlertCircle className="h-4 w-4 text-gray-400" />;
       default:
         return <Loader2 className="h-4 w-4 animate-spin text-gray-400" />;
     }
@@ -72,8 +74,25 @@ export default function WhatsAppTester() {
         return 'bg-red-50 text-red-700 border-red-200';
       case 'error':
         return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'not_configured':
+        return 'bg-gray-50 text-gray-700 border-gray-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return 'Conectado';
+      case 'disconnected':
+        return 'Desconectado';
+      case 'error':
+        return 'Erro';
+      case 'not_configured':
+        return 'Não Configurado';
+      default:
+        return 'Verificando...';
     }
   };
 
@@ -102,7 +121,7 @@ export default function WhatsAppTester() {
                     variant="outline" 
                     className={getStatusColor(status as string)}
                   >
-                    {status as string}
+                    {getStatusLabel(status as string)}
                   </Badge>
                 </div>
               );

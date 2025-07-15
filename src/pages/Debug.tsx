@@ -44,8 +44,25 @@ export default function Debug() {
         return "bg-red-50 text-red-700 border-red-200";
       case "disconnected":
         return "bg-red-50 text-red-700 border-red-200";
+      case "not_configured":
+        return "bg-gray-50 text-gray-700 border-gray-200";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case "connected":
+        return "Conectado";
+      case "disconnected":
+        return "Desconectado";
+      case "error":
+        return "Erro";
+      case "not_configured":
+        return "Não Configurado";
+      default:
+        return "Verificando...";
     }
   };
 
@@ -113,7 +130,7 @@ export default function Debug() {
                             {service.replace('_', ' ')}
                           </h3>
                           <Badge className={getStatusColor(status as string)}>
-                            {status as string}
+                            {getStatusLabel(status as string)}
                           </Badge>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
