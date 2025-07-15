@@ -2,57 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Drystore Design System - Paleta de cores oficial */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Cores principais Drystore */
+    --orange-primary: 22 88% 51%; /* #F97316 */
+    --gray-dark: 0 0% 23%; /* #3A3A3A */
+    --gray-medium: 0 0% 54%; /* #8A8A8A */
+    --white: 0 0% 100%; /* #FFFFFF */
+    
+    /* Cores de apoio */
+    --gray-light: 0 0% 96%; /* #F5F5F5 */
+    --gray-border: 0 0% 90%; /* #E5E5E5 */
+    --success: 142 71% 45%; /* #22C55E */
+    --warning: 38 92% 50%; /* #F59E0B */
+    --error: 0 84% 60%; /* #EF4444 */
+    --info: 217 91% 60%; /* #3B82F6 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Mapeamento do shadcn para cores Drystore */
+    --background: var(--white);
+    --foreground: var(--gray-dark);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --card: var(--white);
+    --card-foreground: var(--gray-dark);
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --popover: var(--white);
+    --popover-foreground: var(--gray-dark);
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --primary: var(--orange-primary);
+    --primary-foreground: var(--white);
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --secondary: var(--gray-light);
+    --secondary-foreground: var(--gray-dark);
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --muted: var(--gray-light);
+    --muted-foreground: var(--gray-medium);
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --accent: var(--gray-light);
+    --accent-foreground: var(--gray-dark);
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --destructive: var(--error);
+    --destructive-foreground: var(--white);
+
+    --border: var(--gray-border);
+    --input: var(--gray-border);
+    --ring: var(--orange-primary);
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar customizada para Drystore */
+    --sidebar-background: var(--gray-dark);
+    --sidebar-foreground: var(--white);
+    --sidebar-primary: var(--orange-primary);
+    --sidebar-primary-foreground: var(--white);
+    --sidebar-accent: var(--gray-medium);
+    --sidebar-accent-foreground: var(--white);
+    --sidebar-border: var(--gray-medium);
+    --sidebar-ring: var(--orange-primary);
+    
+    /* Gradientes e sombras */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--orange-primary)), hsl(22 88% 45%));
+    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-hover: 0 8px 25px rgba(0, 0, 0, 0.15);
+    
+    /* Animações */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.15s ease-out;
   }
 
   .dark {
