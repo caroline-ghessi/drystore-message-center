@@ -7,7 +7,8 @@ import {
   Settings, 
   Bug,
   Building2,
-  LogOut
+  LogOut,
+  Brain
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Mensagens Oficial', href: '/mensagens/oficial', icon: MessageSquare },
   { name: 'Acompanhar Vendedores', href: '/mensagens/vendedores', icon: Users },
   { name: 'Leads', href: '/leads', icon: Target },
+  { name: 'Visão do Dono', href: '/visao-dono', icon: Brain },
   { name: 'Configurações', href: '/configuracoes', icon: Settings },
   { name: 'Debug', href: '/debug', icon: Bug },
 ];

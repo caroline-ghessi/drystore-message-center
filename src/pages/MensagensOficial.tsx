@@ -1,28 +1,50 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Search, Phone, Clock, MessageSquare } from "lucide-react";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Conversation {
   id: string;
   phone_number: string;
   customer_name: string;
-  status: 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished';
+  status: 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'fallback_active';
   last_message: string;
   last_message_time: string;
   unread_count: number;
+  fallback_mode: boolean;
+  auto_evaluation_timer?: number;
+  message_queue: Array<{
+    id: string;
+    content: string;
+    timestamp: string;
+    grouped: boolean;
+  }>;
 }
 
 export default function MensagensOficial() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [timers, setTimers] = useState<Record<string, number>>({});
+  const { toast } = useToast();
 
   // Mock data - substituir por dados reais do Supabase
-  const conversations: Conversation[] = [
+  const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: '1',
       phone_number: '(11) 99999-9999',
@@ -30,7 +52,10 @@ export default function MensagensOficial() {
       status: 'bot_attending',
       last_message: 'Gostaria de saber sobre o produto X',
       last_message_time: '2024-01-15T10:30:00Z',
-      unread_count: 2
+      unread_count: 2,
+      fallback_mode: false,
+      auto_evaluation_timer: 15,
+      message_queue: []
     },
     {
       id: '2',
@@ -39,7 +64,10 @@ export default function MensagensOficial() {
       status: 'waiting_evaluation',
       last_message: 'Preciso de mais informações sobre preços',
       last_message_time: '2024-01-15T10:25:00Z',
-      unread_count: 0
+      unread_count: 0,
+      fallback_mode: false,
+      auto_evaluation_timer: 2,
+      message_queue: []
     },
     {
       id: '3',
@@ -48,9 +76,11 @@ export default function MensagensOficial() {
       status: 'sent_to_seller',
       last_message: 'Obrigado pela informação',
       last_message_time: '2024-01-15T10:20:00Z',
-      unread_count: 1
+      unread_count: 1,
+      fallback_mode: false,
+      message_queue: []
     }
-  ];
+  ]);
 
   const mockMessages = [
     {
@@ -87,6 +117,63 @@ export default function MensagensOficial() {
     conv.phone_number.includes(searchTerm)
   );
 
+  // Timer para avaliação automática
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers(prev => {
+        const newTimers = { ...prev };
+        conversations.forEach(conv => {
+          if (conv.status === 'waiting_evaluation' && conv.auto_evaluation_timer) {
+            newTimers[conv.id] = (newTimers[conv.id] || conv.auto_evaluation_timer * 60) - 1;
+            
+            if (newTimers[conv.id] <= 0) {
+              // Dispara avaliação automática
+              handleAutoEvaluation(conv.id);
+              delete newTimers[conv.id];
+            }
+          }
+        });
+        return newTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [conversations]);
+
+  const handleAutoEvaluation = (conversationId: string) => {
+    // Simula avaliação automática por IA
+    console.log('Avaliação automática disparada para:', conversationId);
+    
+    // Aqui seria a chamada para o agente IA avaliar se vale enviar ao vendedor
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, status: 'sent_to_seller' as const }
+          : conv
+      )
+    );
+    
+    toast({
+      title: "Avaliação Automática",
+      description: "Lead avaliado automaticamente e enviado ao vendedor",
+    });
+  };
+
+  const handleFallbackMode = (conversationId: string) => {
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId 
+          ? { ...conv, fallback_mode: true, status: 'fallback_active' as const }
+          : conv
+      )
+    );
+    
+    toast({
+      title: "Modo Fallback Ativado",
+      description: "Você assumiu o controle desta conversa. O bot foi desativado.",
+    });
+  };
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -99,6 +186,12 @@ export default function MensagensOficial() {
     } else {
       return date.toLocaleDateString('pt-BR');
     }
+  };
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -160,9 +253,15 @@ export default function MensagensOficial() {
                       </p>
                       <div className="flex items-center justify-between mt-2">
                         <StatusBadge status={conversation.status} />
-                        <div className="flex items-center space-x-1 text-xs text-muted-foreground">
+                        <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           <span>{formatTime(conversation.last_message_time)}</span>
+                          {conversation.status === 'waiting_evaluation' && timers[conversation.id] && (
+                            <div className="flex items-center space-x-1 text-drystore-warning">
+                              <Timer className="h-3 w-3" />
+                              <span>{formatTimer(timers[conversation.id])}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -186,9 +285,40 @@ export default function MensagensOficial() {
                         {conversations.find(c => c.id === selectedConversation)?.phone_number}
                       </div>
                     </div>
-                    <StatusBadge 
-                      status={conversations.find(c => c.id === selectedConversation)?.status || 'bot_attending'} 
-                    />
+                    <div className="flex items-center space-x-2">
+                      <StatusBadge 
+                        status={conversations.find(c => c.id === selectedConversation)?.status || 'bot_attending'} 
+                      />
+                      {/* Botão Fallback */}
+                      {selectedConversation && !conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                              <User className="h-3 w-3" />
+                              <span>Assumir Conversa</span>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="flex items-center space-x-2">
+                                <AlertTriangle className="h-5 w-5 text-drystore-warning" />
+                                <span>Ativar Modo Fallback</span>
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
+                                Esta ação não pode ser desfeita. Deseja continuar?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
+                                Assumir Conversa
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   'Selecione uma conversa'
@@ -200,7 +330,7 @@ export default function MensagensOficial() {
                 <MessagePanel
                   conversation_id={selectedConversation}
                   messages={mockMessages}
-                  canSendMessage={false}
+                  canSendMessage={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
                   className="h-full"
                 />
               ) : (

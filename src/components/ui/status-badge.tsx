@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export type StatusType = 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'sold' | 'lost' | 'attending';
+export type StatusType = 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'sold' | 'lost' | 'attending' | 'fallback_active';
 
 interface StatusBadgeProps {
   status: StatusType;
@@ -36,6 +36,10 @@ const statusConfig = {
   attending: {
     label: 'Atendendo',
     className: 'bg-drystore-info/10 text-drystore-info border-drystore-info/20'
+  },
+  fallback_active: {
+    label: 'Modo Fallback',
+    className: 'bg-purple-500/10 text-purple-500 border-purple-500/20'
   }
 };
 

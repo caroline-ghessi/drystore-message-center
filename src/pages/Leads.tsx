@@ -11,8 +11,13 @@ import {
   Calendar,
   TrendingUp,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Table,
   TableBody,
@@ -39,15 +44,21 @@ interface Lead {
   sent_at: string;
   status: 'attending' | 'finished' | 'sold' | 'lost';
   generated_sale: boolean;
+  last_contact: string;
+  priority: 'high' | 'medium' | 'low';
+  estimated_value: number;
 }
 
 export default function Leads() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sellerFilter, setSellerFilter] = useState<string>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
+  const { toast } = useToast();
 
   // Mock data - substituir por dados reais do Supabase
-  const leads: Lead[] = [
+  const [leads, setLeads] = useState<Lead[]>([
     {
       id: '1',
       customer_name: 'João Silva',
@@ -57,7 +68,10 @@ export default function Leads() {
       summary: 'Cliente interessado em linha completa para secagem industrial. Empresa média porte.',
       sent_at: '2024-01-15T10:30:00Z',
       status: 'sold',
-      generated_sale: true
+      generated_sale: true,
+      last_contact: '2024-01-15T14:30:00Z',
+      priority: 'high',
+      estimated_value: 85000
     },
     {
       id: '2',
@@ -68,7 +82,10 @@ export default function Leads() {
       summary: 'Necessita de solução para pequeno negócio de alimentos desidratados.',
       sent_at: '2024-01-15T09:45:00Z',
       status: 'attending',
-      generated_sale: false
+      generated_sale: false,
+      last_contact: '2024-01-15T16:20:00Z',
+      priority: 'medium',
+      estimated_value: 35000
     },
     {
       id: '3',
@@ -79,7 +96,10 @@ export default function Leads() {
       summary: 'Interessado em equipamentos para padaria industrial.',
       sent_at: '2024-01-15T08:20:00Z',
       status: 'finished',
-      generated_sale: false
+      generated_sale: false,
+      last_contact: '2024-01-15T12:45:00Z',
+      priority: 'low',
+      estimated_value: 25000
     },
     {
       id: '4',
@@ -90,9 +110,12 @@ export default function Leads() {
       summary: 'Empresa farmacêutica buscando equipamentos de secagem para medicamentos.',
       sent_at: '2024-01-14T16:30:00Z',
       status: 'lost',
-      generated_sale: false
+      generated_sale: false,
+      last_contact: '2024-01-14T18:15:00Z',
+      priority: 'high',
+      estimated_value: 120000
     }
-  ];
+  ]);
 
   const sellers = ['Carlos Silva', 'Ana Santos', 'João Costa', 'Maria Oliveira'];
 
@@ -103,15 +126,79 @@ export default function Leads() {
     
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
     const matchesSeller = sellerFilter === 'all' || lead.seller_name === sellerFilter;
+    const matchesPriority = priorityFilter === 'all' || lead.priority === priorityFilter;
     
-    return matchesSearch && matchesStatus && matchesSeller;
+    let matchesDate = true;
+    if (dateFilter !== 'all') {
+      const leadDate = new Date(lead.sent_at);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - leadDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      switch (dateFilter) {
+        case 'today':
+          matchesDate = diffDays === 0;
+          break;
+        case 'week':
+          matchesDate = diffDays <= 7;
+          break;
+        case 'month':
+          matchesDate = diffDays <= 30;
+          break;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesSeller && matchesPriority && matchesDate;
   });
 
   const stats = {
     total: leads.length,
     sold: leads.filter(l => l.status === 'sold').length,
     attending: leads.filter(l => l.status === 'attending').length,
-    conversionRate: Math.round((leads.filter(l => l.generated_sale).length / leads.length) * 100)
+    conversionRate: Math.round((leads.filter(l => l.generated_sale).length / leads.length) * 100),
+    totalValue: leads.filter(l => l.generated_sale).reduce((sum, l) => sum + l.estimated_value, 0),
+    avgTicket: leads.filter(l => l.generated_sale).length > 0 
+      ? Math.round(leads.filter(l => l.generated_sale).reduce((sum, l) => sum + l.estimated_value, 0) / leads.filter(l => l.generated_sale).length)
+      : 0
+  };
+
+  const handleMarkSale = (leadId: string) => {
+    setLeads(prev => 
+      prev.map(lead => 
+        lead.id === leadId 
+          ? { ...lead, status: 'sold' as const, generated_sale: true }
+          : lead
+      )
+    );
+    
+    toast({
+      title: "Venda Marcada",
+      description: "Lead marcado como venda realizada com sucesso",
+    });
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'text-drystore-error';
+      case 'medium':
+        return 'text-drystore-warning';
+      case 'low':
+        return 'text-drystore-success';
+      default:
+        return 'text-muted-foreground';
+    }
+  };
+
+  const getTimeSinceContact = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    
+    if (diffHours < 24) {
+      return `${diffHours}h atrás`;
+    } else {
+      return `${Math.floor(diffHours / 24)}d atrás`;
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -191,6 +278,33 @@ export default function Leads() {
         </Card>
       </div>
 
+      {/* Additional Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <TrendingUp className="h-8 w-8 text-drystore-success" />
+              <div>
+                <p className="text-2xl font-bold">R$ {(stats.totalValue / 1000).toFixed(0)}k</p>
+                <p className="text-sm text-muted-foreground">Valor Total Vendido</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-card">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <Target className="h-8 w-8 text-drystore-info" />
+              <div>
+                <p className="text-2xl font-bold">R$ {(stats.avgTicket / 1000).toFixed(0)}k</p>
+                <p className="text-sm text-muted-foreground">Ticket Médio</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters */}
       <Card className="shadow-card">
         <CardHeader>
@@ -200,7 +314,7 @@ export default function Leads() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="relative">
               <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -235,6 +349,30 @@ export default function Leads() {
                 ))}
               </SelectContent>
             </Select>
+            
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Prioridades</SelectItem>
+                <SelectItem value="high">Alta</SelectItem>
+                <SelectItem value="medium">Média</SelectItem>
+                <SelectItem value="low">Baixa</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Períodos</SelectItem>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Esta Semana</SelectItem>
+                <SelectItem value="month">Este Mês</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -252,7 +390,9 @@ export default function Leads() {
                 <TableHead>Telefone</TableHead>
                 <TableHead>Vendedor</TableHead>
                 <TableHead>Produto Interesse</TableHead>
-                <TableHead>Enviado em</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Valor Est.</TableHead>
+                <TableHead>Último Contato</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Ações</TableHead>
               </TableRow>
@@ -280,7 +420,23 @@ export default function Leads() {
                       </p>
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(lead.sent_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <div className={`h-2 w-2 rounded-full ${getPriorityColor(lead.priority).replace('text-', 'bg-')}`}></div>
+                      <span className={`text-sm capitalize ${getPriorityColor(lead.priority)}`}>
+                        {lead.priority === 'high' ? 'Alta' : lead.priority === 'medium' ? 'Média' : 'Baixa'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">R$ {(lead.estimated_value / 1000).toFixed(0)}k</span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      <span>{getTimeSinceContact(lead.last_contact)}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={lead.status} />
                   </TableCell>
@@ -292,6 +448,16 @@ export default function Leads() {
                       <Button size="sm" variant="outline">
                         <ExternalLink className="h-4 w-4" />
                       </Button>
+                      {lead.status === 'attending' && !lead.generated_sale && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleMarkSale(lead.id)}
+                          className="text-drystore-success hover:bg-drystore-success/10"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
