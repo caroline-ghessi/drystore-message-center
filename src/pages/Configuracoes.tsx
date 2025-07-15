@@ -20,6 +20,7 @@ import SellerCard from "@/components/Config/SellerCard";
 import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
 import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
+import SellerProfileForm from "@/components/Config/SellerProfileForm";
 
 interface Seller {
   id: string;
@@ -154,8 +155,9 @@ export default function Configuracoes() {
 
       {/* Content */}
       <Tabs defaultValue="sellers" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="sellers">Vendedores</TabsTrigger>
+          <TabsTrigger value="profile-details">Perfil Detalhado</TabsTrigger>
           <TabsTrigger value="rodrigo-bot">Rodrigo Bot</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
@@ -189,6 +191,26 @@ export default function Configuracoes() {
                   Nenhum vendedor cadastrado. Use o formulário acima para adicionar vendedores.
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Profile Details Tab */}
+        <TabsContent value="profile-details" className="space-y-6">
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5 text-drystore-orange" />
+                <span>Cadastro Detalhado de Vendedor</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SellerProfileForm onSuccess={() => {
+                toast({
+                  title: "Sucesso!",
+                  description: "Vendedor cadastrado com sucesso",
+                });
+              }} />
             </CardContent>
           </Card>
         </TabsContent>

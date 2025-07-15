@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_types: {
+        Row: {
+          active: boolean | null
+          avg_ticket_range: string | null
+          complexity_level: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          avg_ticket_range?: string | null
+          complexity_level?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          avg_ticket_range?: string | null
+          complexity_level?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           assigned_seller_id: string | null
@@ -297,6 +330,44 @@ export type Database = {
           },
         ]
       }
+      product_categories: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -386,13 +457,168 @@ export type Database = {
           },
         ]
       }
+      seller_performance_metrics: {
+        Row: {
+          created_at: string | null
+          id: string
+          metric_type: string
+          metric_unit: string | null
+          metric_value: number
+          period_end: string
+          period_start: string
+          seller_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metric_type: string
+          metric_unit?: string | null
+          metric_value: number
+          period_end: string
+          period_start: string
+          seller_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metric_type?: string
+          metric_unit?: string | null
+          metric_value?: number
+          period_end?: string
+          period_start?: string
+          seller_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_performance_metrics_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_dashboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_performance_metrics_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seller_skills: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          proficiency_level: number | null
+          seller_id: string
+          skill_name: string
+          skill_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          proficiency_level?: number | null
+          seller_id: string
+          skill_name: string
+          skill_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          proficiency_level?: number | null
+          seller_id?: string
+          skill_name?: string
+          skill_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_skills_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_dashboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_skills_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seller_specialties: {
+        Row: {
+          created_at: string | null
+          expertise_level: string | null
+          id: string
+          product_category_id: string
+          seller_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expertise_level?: string | null
+          id?: string
+          product_category_id: string
+          seller_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expertise_level?: string | null
+          id?: string
+          product_category_id?: string
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_specialties_product_category_id_fkey"
+            columns: ["product_category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_specialties_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_dashboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_specialties_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sellers: {
         Row: {
           active: boolean | null
           auto_first_message: boolean | null
+          avatar_url: string | null
+          average_ticket: number | null
+          bio: string | null
+          conversion_rate: number | null
           created_at: string | null
+          current_workload: number | null
+          email: string | null
+          experience_years: number | null
           id: string
+          max_concurrent_leads: number | null
           name: string
+          performance_score: number | null
+          personality_type: string | null
           phone_number: string
           updated_at: string | null
           whapi_token: string | null
@@ -401,9 +627,19 @@ export type Database = {
         Insert: {
           active?: boolean | null
           auto_first_message?: boolean | null
+          avatar_url?: string | null
+          average_ticket?: number | null
+          bio?: string | null
+          conversion_rate?: number | null
           created_at?: string | null
+          current_workload?: number | null
+          email?: string | null
+          experience_years?: number | null
           id?: string
+          max_concurrent_leads?: number | null
           name: string
+          performance_score?: number | null
+          personality_type?: string | null
           phone_number: string
           updated_at?: string | null
           whapi_token?: string | null
@@ -412,9 +648,19 @@ export type Database = {
         Update: {
           active?: boolean | null
           auto_first_message?: boolean | null
+          avatar_url?: string | null
+          average_ticket?: number | null
+          bio?: string | null
+          conversion_rate?: number | null
           created_at?: string | null
+          current_workload?: number | null
+          email?: string | null
+          experience_years?: number | null
           id?: string
+          max_concurrent_leads?: number | null
           name?: string
+          performance_score?: number | null
+          personality_type?: string | null
           phone_number?: string
           updated_at?: string | null
           whapi_token?: string | null
