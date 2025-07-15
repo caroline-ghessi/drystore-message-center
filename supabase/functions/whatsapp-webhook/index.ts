@@ -127,7 +127,22 @@ serve(async (req) => {
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
           if (change.field === 'messages') {
-            await processMessages(supabase, change.value);
+            const processResult = await processMessages(supabase, change.value);
+            
+            // Se a mensagem foi salva com sucesso, processar com Dify
+            if (processResult?.conversation_id && processResult?.content) {
+              try {
+                await supabase.functions.invoke('dify-process-messages', {
+                  body: {
+                    conversationId: processResult.conversation_id,
+                    phoneNumber: processResult.phone_number,
+                    messageContent: processResult.content
+                  }
+                });
+              } catch (error) {
+                console.error('Error invoking Dify processing:', error);
+              }
+            }
           }
         }
       }
@@ -158,7 +173,7 @@ serve(async (req) => {
 async function processMessages(supabase: any, value: any) {
   const { messages, contacts, metadata } = value;
   
-  if (!messages) return;
+  if (!messages) return null;
 
   for (const message of messages) {
     const phoneNumber = message.from;
@@ -192,7 +207,7 @@ async function processMessages(supabase: any, value: any) {
 
     if (!conversation) {
       console.error('Failed to create or find conversation');
-      return;
+      return null;
     }
 
     // Process message content
@@ -257,5 +272,15 @@ async function processMessages(supabase: any, value: any) {
     });
 
     console.log(`Message processed for conversation ${conversation.id}`);
+    
+    // Return data for Dify processing
+    return {
+      conversation_id: conversation.id,
+      phone_number: phoneNumber,
+      content: content,
+      message_type: messageType
+    };
   }
+  
+  return null;
 }

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import WhatsAppTester from "@/components/Debug/WhatsAppTester";
 import LogViewer from "@/components/Debug/LogViewer";
+import { DifyChatTest } from "@/components/Debug/DifyChatTest";
 import { useSystemLogs, useConnectionStatus } from "@/hooks/useDebugData";
 
 export default function Debug() {
@@ -95,12 +96,13 @@ export default function Debug() {
       {/* Content */}
       <div className="w-full">
         <Tabs defaultValue="whatsapp" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="whatsapp">Teste WhatsApp</TabsTrigger>
-            <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
-            <TabsTrigger value="connections">Status das Conexões</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-          </TabsList>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+          <TabsTrigger value="dify">Dify Chat</TabsTrigger>
+          <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
+          <TabsTrigger value="connections">Status Conexões</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+        </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
           <WhatsAppTester />
