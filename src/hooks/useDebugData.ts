@@ -89,7 +89,7 @@ export function useConnectionStatus() {
         const { data: integrations } = await supabase
           .from("integrations")
           .select("*")
-          .eq("type", "meta_whatsapp")
+          .eq("type", "meta")
           .eq("active", true);
 
         const metaActive = integrations && integrations.length > 0;
