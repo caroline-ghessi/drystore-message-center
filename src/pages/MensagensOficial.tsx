@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
-import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, MessageCircle } from "lucide-react";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
+import { useConversations, Conversation } from "@/hooks/useConversations";
+import { useConversationMessages } from "@/hooks/useConversationMessages";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -21,121 +24,35 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-interface Conversation {
-  id: string;
-  phone_number: string;
-  customer_name: string;
-  status: 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'fallback_active';
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-  fallback_mode: boolean;
-  auto_evaluation_timer?: number;
-  message_queue: Array<{
-    id: string;
-    content: string;
-    timestamp: string;
-    grouped: boolean;
-  }>;
-}
-
 export default function MensagensOficial() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [timers, setTimers] = useState<Record<string, number>>({});
   const { toast } = useToast();
   
-  // Hooks para vendedores e transferência
+  // Hooks para dados reais
+  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(searchTerm);
+  const { data: messages = [], isLoading: messagesLoading } = useConversationMessages(selectedConversation);
   const { data: sellers = [], isLoading: sellersLoading } = useActiveSellers();
   const transferMutation = useTransferToSeller();
 
-  // Mock data - substituir por dados reais do Supabase
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: '1',
-      phone_number: '(11) 99999-9999',
-      customer_name: 'João Silva',
-      status: 'bot_attending',
-      last_message: 'Gostaria de saber sobre o produto X',
-      last_message_time: '2024-01-15T10:30:00Z',
-      unread_count: 2,
-      fallback_mode: false,
-      auto_evaluation_timer: 15,
-      message_queue: []
-    },
-    {
-      id: '2',
-      phone_number: '(11) 88888-8888',
-      customer_name: 'Maria Santos',
-      status: 'waiting_evaluation',
-      last_message: 'Preciso de mais informações sobre preços',
-      last_message_time: '2024-01-15T10:25:00Z',
-      unread_count: 0,
-      fallback_mode: false,
-      auto_evaluation_timer: 2,
-      message_queue: []
-    },
-    {
-      id: '3',
-      phone_number: '(11) 77777-7777',
-      customer_name: 'Pedro Costa',
-      status: 'sent_to_seller',
-      last_message: 'Obrigado pela informação',
-      last_message_time: '2024-01-15T10:20:00Z',
-      unread_count: 1,
-      fallback_mode: false,
-      message_queue: []
-    }
-  ]);
-
-  const mockMessages = [
-    {
-      id: '1',
-      conversation_id: selectedConversation || '1',
-      sender_type: 'customer' as const,
-      sender_name: 'João Silva',
-      content: 'Olá! Gostaria de saber sobre o produto X',
-      message_type: 'text' as const,
-      created_at: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: '2',
-      conversation_id: selectedConversation || '1',
-      sender_type: 'bot' as const,
-      sender_name: 'Assistente Drystore',
-      content: 'Olá! Posso ajudar você com informações sobre nossos produtos. Sobre qual produto específico você gostaria de saber?',
-      message_type: 'text' as const,
-      created_at: '2024-01-15T10:30:30Z'
-    },
-    {
-      id: '3',
-      conversation_id: selectedConversation || '1',
-      sender_type: 'customer' as const,
-      sender_name: 'João Silva',
-      content: 'Estou interessado em produtos para secagem industrial',
-      message_type: 'text' as const,
-      created_at: '2024-01-15T10:31:00Z'
-    }
-  ];
-
-  const filteredConversations = conversations.filter(conv =>
-    conv.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.phone_number.includes(searchTerm)
-  );
-
-  // Timer para avaliação automática
+  // Timer para avaliação automática (simulado por enquanto)
   useEffect(() => {
     const interval = setInterval(() => {
       setTimers(prev => {
         const newTimers = { ...prev };
         conversations.forEach(conv => {
-          if (conv.status === 'waiting_evaluation' && conv.auto_evaluation_timer) {
-            newTimers[conv.id] = (newTimers[conv.id] || conv.auto_evaluation_timer * 60) - 1;
+          if (conv.status === 'waiting_evaluation') {
+            // Simula timer de 15 minutos para avaliação
+            const timerId = `${conv.id}-timer`;
+            if (!newTimers[timerId]) {
+              newTimers[timerId] = 15 * 60; // 15 minutos em segundos
+            }
+            newTimers[timerId] = newTimers[timerId] - 1;
             
-            if (newTimers[conv.id] <= 0) {
-              // Dispara avaliação automática
+            if (newTimers[timerId] <= 0) {
               handleAutoEvaluation(conv.id);
-              delete newTimers[conv.id];
+              delete newTimers[timerId];
             }
           }
         });
@@ -146,38 +63,57 @@ export default function MensagensOficial() {
     return () => clearInterval(interval);
   }, [conversations]);
 
-  const handleAutoEvaluation = (conversationId: string) => {
-    // Simula avaliação automática por IA
+  const handleAutoEvaluation = async (conversationId: string) => {
     console.log('Avaliação automática disparada para:', conversationId);
     
-    // Aqui seria a chamada para o agente IA avaliar se vale enviar ao vendedor
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, status: 'sent_to_seller' as const }
-          : conv
-      )
-    );
-    
-    toast({
-      title: "Avaliação Automática",
-      description: "Lead avaliado automaticamente e enviado ao vendedor",
-    });
+    try {
+      // Atualiza status da conversa no banco
+      const { error } = await supabase
+        .from('conversations')
+        .update({ status: 'sent_to_seller' })
+        .eq('id', conversationId);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Avaliação Automática",
+        description: "Lead avaliado automaticamente e enviado ao vendedor",
+      });
+    } catch (error) {
+      console.error('Erro na avaliação automática:', error);
+      toast({
+        title: "Erro",
+        description: "Erro na avaliação automática. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleFallbackMode = (conversationId: string) => {
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, fallback_mode: true, status: 'fallback_active' as const }
-          : conv
-      )
-    );
-    
-    toast({
-      title: "Modo Fallback Ativado",
-      description: "Você assumiu o controle desta conversa. O bot foi desativado.",
-    });
+  const handleFallbackMode = async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ 
+          fallback_mode: true, 
+          status: 'fallback_active',
+          fallback_taken_by: 'user-id' // TODO: usar ID do usuário atual
+        })
+        .eq('id', conversationId);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Modo Fallback Ativado",
+        description: "Você assumiu o controle desta conversa. O bot foi desativado.",
+      });
+    } catch (error) {
+      console.error('Erro ao ativar fallback:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao assumir conversa. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatTime = (dateString: string) => {
@@ -213,15 +149,6 @@ export default function MensagensOficial() {
       phoneNumber: conversation.phone_number,
       notes,
     });
-
-    // Atualizar estado local
-    setConversations(prev => 
-      prev.map(conv => 
-        conv.id === selectedConversation 
-          ? { ...conv, status: 'sent_to_seller' as const }
-          : conv
-      )
-    );
   };
 
   return (
@@ -255,7 +182,20 @@ export default function MensagensOficial() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
-              {filteredConversations.map((conversation) => (
+              {conversationsLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Carregando conversas...</span>
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-center">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-muted-foreground">Nenhuma conversa encontrada</p>
+                  </div>
+                </div>
+              ) : (
+                conversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   onClick={() => setSelectedConversation(conversation.id)}
@@ -279,17 +219,17 @@ export default function MensagensOficial() {
                         <span>{conversation.phone_number}</span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 truncate">
-                        {conversation.last_message}
+                        {conversation.last_message || 'Sem mensagens'}
                       </p>
                       <div className="flex items-center justify-between mt-2">
                         <StatusBadge status={conversation.status} />
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
-                          <span>{formatTime(conversation.last_message_time)}</span>
-                          {conversation.status === 'waiting_evaluation' && timers[conversation.id] && (
+                          <span>{formatTime(conversation.last_message_at)}</span>
+                          {conversation.status === 'waiting_evaluation' && timers[`${conversation.id}-timer`] && (
                             <div className="flex items-center space-x-1 text-drystore-warning">
                               <Timer className="h-3 w-3" />
-                              <span>{formatTimer(timers[conversation.id])}</span>
+                              <span>{formatTimer(timers[`${conversation.id}-timer`])}</span>
                             </div>
                           )}
                         </div>
@@ -297,7 +237,8 @@ export default function MensagensOficial() {
                     </div>
                   </div>
                 </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -373,12 +314,21 @@ export default function MensagensOficial() {
             </CardHeader>
             <CardContent className="p-0 h-[calc(100vh-350px)]">
               {selectedConversation ? (
-                <MessagePanel
-                  conversation_id={selectedConversation}
-                  messages={mockMessages}
-                  canSendMessage={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
-                  className="h-full"
-                />
+                messagesLoading ? (
+                  <div className="h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
+                      <p className="text-muted-foreground">Carregando mensagens...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <MessagePanel
+                    conversation_id={selectedConversation}
+                    messages={messages}
+                    canSendMessage={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
+                    className="h-full"
+                  />
+                )
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">

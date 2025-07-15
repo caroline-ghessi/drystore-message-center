@@ -8,8 +8,8 @@ interface Message {
   id: string;
   conversation_id: string;
   sender_type: SenderType;
-  sender_name: string;
-  content: string;
+  sender_name?: string;
+  content?: string;
   message_type: MessageType;
   media_url?: string;
   created_at: string;
@@ -70,9 +70,9 @@ export function MessagePanel({
           messages.map((message) => (
             <MessageBubble
               key={message.id}
-              content={message.content}
+              content={message.content || ''}
               sender_type={message.sender_type}
-              sender_name={message.sender_name}
+              sender_name={message.sender_name || 'Usuário'}
               message_type={message.message_type}
               media_url={message.media_url}
               created_at={message.created_at}
