@@ -4,9 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
 import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +44,10 @@ export default function MensagensOficial() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [timers, setTimers] = useState<Record<string, number>>({});
   const { toast } = useToast();
+  
+  // Hooks para vendedores e transferência
+  const { data: sellers = [], isLoading: sellersLoading } = useActiveSellers();
+  const transferMutation = useTransferToSeller();
 
   // Mock data - substituir por dados reais do Supabase
   const [conversations, setConversations] = useState<Conversation[]>([
@@ -194,6 +200,30 @@ export default function MensagensOficial() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleTransferToSeller = async (sellerId: string, notes?: string) => {
+    if (!selectedConversation) return;
+    
+    const conversation = conversations.find(c => c.id === selectedConversation);
+    if (!conversation) return;
+
+    await transferMutation.mutateAsync({
+      conversationId: selectedConversation,
+      sellerId,
+      customerName: conversation.customer_name,
+      phoneNumber: conversation.phone_number,
+      notes,
+    });
+
+    // Atualizar estado local
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === selectedConversation 
+          ? { ...conv, status: 'sent_to_seller' as const }
+          : conv
+      )
+    );
+  };
+
   return (
     <div className="p-6 h-screen flex flex-col">
       {/* Header */}
@@ -289,34 +319,50 @@ export default function MensagensOficial() {
                       <StatusBadge 
                         status={conversations.find(c => c.id === selectedConversation)?.status || 'bot_attending'} 
                       />
-                      {/* Botão Fallback */}
-                      {selectedConversation && !conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="outline" className="flex items-center space-x-1">
-                              <User className="h-3 w-3" />
-                              <span>Assumir Conversa</span>
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="flex items-center space-x-2">
-                                <AlertTriangle className="h-5 w-5 text-drystore-warning" />
-                                <span>Ativar Modo Fallback</span>
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
-                                Esta ação não pode ser desfeita. Deseja continuar?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
-                                Assumir Conversa
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      {/* Botões de Ação */}
+                      {selectedConversation && (
+                        <div className="flex items-center space-x-2">
+                          {/* Botão Transferir - apenas em modo fallback */}
+                          {conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
+                            <TransferToSellerDialog
+                              conversationId={selectedConversation}
+                              customerName={conversations.find(c => c.id === selectedConversation)?.customer_name || ''}
+                              sellers={sellers}
+                              isLoading={sellersLoading}
+                              onTransfer={handleTransferToSeller}
+                            />
+                          )}
+                          
+                          {/* Botão Fallback - apenas se não estiver em fallback */}
+                          {!conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                                  <User className="h-3 w-3" />
+                                  <span>Assumir Conversa</span>
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center space-x-2">
+                                    <AlertTriangle className="h-5 w-5 text-drystore-warning" />
+                                    <span>Ativar Modo Fallback</span>
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
+                                    Esta ação não pode ser desfeita. Deseja continuar?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
+                                    Assumir Conversa
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
