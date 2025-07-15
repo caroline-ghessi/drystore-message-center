@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -16,7 +17,6 @@ interface SendMessageRequest {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -36,21 +36,9 @@ serve(async (req) => {
 
     console.log('Sending WhatsApp message:', { to, type, content });
 
-    // Get Meta WhatsApp configuration
-    const { data: integration } = await supabase
-      .from('integrations')
-      .select('config')
-      .eq('type', 'whatsapp')
-      .eq('name', 'WhatsApp Business Meta')
-      .single();
-
-    if (!integration?.config) {
-      throw new Error('WhatsApp Meta integration not configured');
-    }
-
-    const config = integration.config;
-    const accessToken = config.meta_access_token;
-    const phoneNumberId = config.phone_number_id;
+    // Get Meta WhatsApp configuration from environment (more secure)
+    const accessToken = Deno.env.get('META_ACCESS_TOKEN');
+    const phoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
 
     if (!accessToken || !phoneNumberId) {
       throw new Error('Meta Access Token or Phone Number ID not configured');
