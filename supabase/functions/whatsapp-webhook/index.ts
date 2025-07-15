@@ -73,14 +73,23 @@ serve(async (req) => {
       console.log('Webhook verification attempt:', { mode, token, challenge });
 
       // Get verification token from database
-      const { data: integration } = await supabase
+      const { data: integration, error: dbError } = await supabase
         .from('integrations')
         .select('config')
-        .eq('type', 'whatsapp')
+        .eq('type', 'meta')
         .eq('name', 'WhatsApp Business Meta')
         .single();
 
       const verifyToken = integration?.config?.webhook_verify_token;
+      
+      console.log('Webhook verification details:', {
+        mode,
+        token,
+        challenge,
+        verifyToken,
+        integrationFound: !!integration,
+        dbError: dbError?.message
+      });
 
       if (mode === 'subscribe' && token === verifyToken) {
         console.log('Webhook verified successfully');
@@ -88,7 +97,12 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'text/plain' } 
         });
       } else {
-        console.log('Webhook verification failed:', { mode, token, verifyToken });
+        console.log('Webhook verification failed:', {
+          mode,
+          token,
+          verifyToken,
+          integration: integration?.config
+        });
         return new Response('Forbidden', { status: 403, headers: corsHeaders });
       }
     }
