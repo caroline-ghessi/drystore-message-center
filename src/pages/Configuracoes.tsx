@@ -21,6 +21,7 @@ import { RodrigoBotWhapiCard } from "@/components/Config/RodrigoBotWhapiCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
 import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
 import SellerProfileForm from "@/components/Config/SellerProfileForm";
+import { useSellers } from "@/hooks/useSellers";
 
 interface Seller {
   id: string;
@@ -44,28 +45,10 @@ interface RodrigoBot {
 export default function Configuracoes() {
   const { toast } = useToast();
   
-  const [sellers, setSellers] = useState<Seller[]>([
-    {
-      id: '1',
-      name: 'Carlos Silva',
-      phone_number: '(11) 99999-9999',
-      webhook_url: 'https://api.drystore.com/webhook/seller/carlos-silva',
-      status: 'active',
-      auto_first_message: true,
-      created_at: '2024-01-10T00:00:00Z',
-      last_test: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: '2',
-      name: 'Ana Santos',
-      phone_number: '(11) 88888-8888',
-      webhook_url: 'https://api.drystore.com/webhook/seller/ana-santos',
-      status: 'inactive',
-      auto_first_message: false,
-      created_at: '2024-01-10T00:00:00Z',
-      last_test: '2024-01-12T14:20:00Z'
-    }
-  ]);
+  // Buscar vendedores reais
+  const { sellers: realSellers, isLoading: sellersLoading } = useSellers();
+  
+  const [sellers, setSellers] = useState<Seller[]>([]);
 
   const [rodrigoBot, setRodrigoBot] = useState<RodrigoBot>({
     status: 'active',
@@ -190,20 +173,40 @@ export default function Configuracoes() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sellers.map((seller) => (
-                  <SellerCard
-                    key={seller.id}
-                    seller={seller}
-                    onUpdate={handleUpdateSeller}
-                    onDelete={handleDeleteSeller}
-                    onTestIntegration={handleTestSellerIntegration}
-                  />
-                ))}
-              </div>
-              {sellers.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhum vendedor cadastrado. Use o formulário acima para adicionar vendedores.
+              {sellersLoading ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center space-x-2">
+                    <div className="h-4 w-4 border-2 border-drystore-orange border-t-transparent rounded-full animate-spin" />
+                    <span className="text-muted-foreground">Carregando vendedores...</span>
+                  </div>
+                </div>
+              ) : realSellers?.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Nenhum vendedor cadastrado ainda.</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Use o formulário acima para adicionar um vendedor.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {realSellers?.map(seller => (
+                    <SellerCard 
+                      key={seller.id}
+                      seller={{
+                        id: seller.id,
+                        name: seller.name,
+                        phone_number: seller.phone_number,
+                        webhook_url: `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook?seller_id=${seller.id}`,
+                        status: seller.whapi_status as 'active' | 'inactive' | 'testing' | 'error' || 'inactive',
+                        auto_first_message: seller.auto_first_message || false,
+                        created_at: seller.created_at || '',
+                        last_test: seller.whapi_last_test || undefined
+                      }}
+                      onUpdate={handleUpdateSeller}
+                      onDelete={handleDeleteSeller}
+                      onTestIntegration={handleTestSellerIntegration}
+                    />
+                  ))}
                 </div>
               )}
             </CardContent>

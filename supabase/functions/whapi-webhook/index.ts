@@ -43,8 +43,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Extrair seller_id do query parameter se presente
+    const url = new URL(req.url)
+    const sellerId = url.searchParams.get('seller_id')
+
     const webhook: WhapiWebhook = await req.json()
     console.log('WHAPI Webhook recebido:', JSON.stringify(webhook, null, 2))
+    
+    if (sellerId) {
+      console.log('Webhook direcionado para vendedor:', sellerId)
+    }
 
     // Log do webhook recebido
     await supabase.from('webhook_logs').insert({
@@ -58,7 +66,7 @@ serve(async (req) => {
     // Processar mensagens
     if (webhook.event === 'messages' && webhook.messages) {
       for (const message of webhook.messages) {
-        await processMessage(supabase, message)
+        await processMessage(supabase, message, sellerId)
       }
     }
 
@@ -96,23 +104,45 @@ serve(async (req) => {
   }
 })
 
-async function processMessage(supabase: any, message: WhapiMessage) {
+async function processMessage(supabase: any, message: WhapiMessage, sellerId?: string | null) {
   try {
     console.log('Processando mensagem WHAPI:', message)
 
-    // Verificar se é mensagem de vendedor (pelo número FROM)
-    const { data: sellerFrom } = await supabase
-      .from('sellers')
-      .select('id, name, phone_number')
-      .eq('phone_number', message.from)
-      .single()
+    let sellerFrom = null;
+    let sellerTo = null;
 
-    // Verificar se é mensagem para vendedor (pelo número TO)
-    const { data: sellerTo } = await supabase
-      .from('sellers')
-      .select('id, name, phone_number')
-      .eq('phone_number', message.to)
-      .single()
+    // Se temos seller_id específico, usar ele diretamente
+    if (sellerId) {
+      const { data: specificSeller } = await supabase
+        .from('sellers')
+        .select('id, name, phone_number')
+        .eq('id', sellerId)
+        .single()
+      
+      if (specificSeller) {
+        if (message.from === specificSeller.phone_number) {
+          sellerFrom = specificSeller;
+        } else if (message.to === specificSeller.phone_number) {
+          sellerTo = specificSeller;
+        }
+      }
+    } else {
+      // Verificar se é mensagem de vendedor (pelo número FROM)
+      const { data: sellerFromData } = await supabase
+        .from('sellers')
+        .select('id, name, phone_number')
+        .eq('phone_number', message.from)
+        .single()
+      sellerFrom = sellerFromData;
+
+      // Verificar se é mensagem para vendedor (pelo número TO)
+      const { data: sellerToData } = await supabase
+        .from('sellers')
+        .select('id, name, phone_number')
+        .eq('phone_number', message.to)
+        .single()
+      sellerTo = sellerToData;
+    }
 
     if (sellerFrom) {
       // Mensagem enviada PELO vendedor PARA o cliente
