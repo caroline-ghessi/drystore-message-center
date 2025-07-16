@@ -272,6 +272,7 @@ export type Database = {
           id: string
           is_read: boolean | null
           media_url: string | null
+          message_source: string | null
           message_type: string | null
           metadata: Json | null
           reply_to_message_id: string | null
@@ -287,6 +288,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           media_url?: string | null
+          message_source?: string | null
           message_type?: string | null
           metadata?: Json | null
           reply_to_message_id?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           media_url?: string | null
+          message_source?: string | null
           message_type?: string | null
           metadata?: Json | null
           reply_to_message_id?: string | null
@@ -624,8 +627,12 @@ export type Database = {
           personality_type: string | null
           phone_number: string
           updated_at: string | null
+          whapi_error_message: string | null
+          whapi_last_test: string | null
+          whapi_status: string | null
           whapi_token: string | null
           whapi_webhook: string | null
+          whapi_webhook_url: string | null
         }
         Insert: {
           active?: boolean | null
@@ -645,8 +652,12 @@ export type Database = {
           personality_type?: string | null
           phone_number: string
           updated_at?: string | null
+          whapi_error_message?: string | null
+          whapi_last_test?: string | null
+          whapi_status?: string | null
           whapi_token?: string | null
           whapi_webhook?: string | null
+          whapi_webhook_url?: string | null
         }
         Update: {
           active?: boolean | null
@@ -666,8 +677,12 @@ export type Database = {
           personality_type?: string | null
           phone_number?: string
           updated_at?: string | null
+          whapi_error_message?: string | null
+          whapi_last_test?: string | null
+          whapi_status?: string | null
           whapi_token?: string | null
           whapi_webhook?: string | null
+          whapi_webhook_url?: string | null
         }
         Relationships: []
       }
@@ -763,6 +778,149 @@ export type Database = {
           url?: string
         }
         Relationships: []
+      }
+      whapi_configurations: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          health_status: string | null
+          id: string
+          last_health_check: string | null
+          name: string
+          phone_number: string
+          seller_id: string | null
+          token_secret_name: string
+          type: string
+          updated_at: string | null
+          webhook_url: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          health_status?: string | null
+          id?: string
+          last_health_check?: string | null
+          name: string
+          phone_number: string
+          seller_id?: string | null
+          token_secret_name: string
+          type: string
+          updated_at?: string | null
+          webhook_url: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          health_status?: string | null
+          id?: string
+          last_health_check?: string | null
+          name?: string
+          phone_number?: string
+          seller_id?: string | null
+          token_secret_name?: string
+          type?: string
+          updated_at?: string | null
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whapi_configurations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_dashboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whapi_configurations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whapi_logs: {
+        Row: {
+          content: string | null
+          conversation_id: string | null
+          created_at: string | null
+          direction: string
+          error_message: string | null
+          id: string
+          media_url: string | null
+          message_type: string | null
+          metadata: Json | null
+          phone_from: string
+          phone_to: string
+          seller_id: string | null
+          status: string | null
+          token_used: string | null
+          whapi_message_id: string | null
+        }
+        Insert: {
+          content?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          direction: string
+          error_message?: string | null
+          id?: string
+          media_url?: string | null
+          message_type?: string | null
+          metadata?: Json | null
+          phone_from: string
+          phone_to: string
+          seller_id?: string | null
+          status?: string | null
+          token_used?: string | null
+          whapi_message_id?: string | null
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          direction?: string
+          error_message?: string | null
+          id?: string
+          media_url?: string | null
+          message_type?: string | null
+          metadata?: Json | null
+          phone_from?: string
+          phone_to?: string
+          seller_id?: string | null
+          status?: string | null
+          token_used?: string | null
+          whapi_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whapi_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whapi_logs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations_with_last_message"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whapi_logs_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "seller_dashboard"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whapi_logs_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

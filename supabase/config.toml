@@ -8,3 +8,12 @@ verify_jwt = true
 
 [functions.retry-media-processing]
 verify_jwt = false
+
+[functions.whapi-webhook]
+verify_jwt = false
+
+[functions.whapi-send]
+verify_jwt = false
+
+[functions.whapi-configure]
+verify_jwt = false
