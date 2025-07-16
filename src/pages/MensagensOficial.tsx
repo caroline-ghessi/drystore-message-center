@@ -162,6 +162,36 @@ export default function MensagensOficial() {
     });
   };
 
+  const handleSendMessage = async (message: string) => {
+    if (!selectedConversation || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: selectedConversation,
+          sender_type: 'operator',
+          sender_name: user.email || 'Operador',
+          content: message,
+          message_type: 'text'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Mensagem enviada",
+        description: "Sua mensagem foi enviada com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao enviar mensagem. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="p-6 h-screen flex flex-col">
       {/* Header */}
@@ -233,7 +263,9 @@ export default function MensagensOficial() {
                         {conversation.last_message || 'Sem mensagens'}
                       </p>
                       <div className="flex items-center justify-between mt-2">
-                        <StatusBadge status={conversation.status} />
+                        <StatusBadge 
+                          status={conversation.fallback_mode ? 'fallback_active' : conversation.status} 
+                        />
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           <span>{formatTime(conversation.last_message_at)}</span>
@@ -269,7 +301,11 @@ export default function MensagensOficial() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <StatusBadge 
-                        status={conversations.find(c => c.id === selectedConversation)?.status || 'bot_attending'} 
+                        status={
+                          conversations.find(c => c.id === selectedConversation)?.fallback_mode 
+                            ? 'fallback_active' 
+                            : conversations.find(c => c.id === selectedConversation)?.status || 'bot_attending'
+                        } 
                       />
                       {/* Botões de Ação */}
                       {selectedConversation && (
@@ -337,6 +373,7 @@ export default function MensagensOficial() {
                     conversation_id={selectedConversation}
                     messages={messages}
                     canSendMessage={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
+                    onSendMessage={handleSendMessage}
                     className="h-full"
                   />
                 )
