@@ -12,6 +12,7 @@ interface Message {
   content?: string;
   message_type: MessageType;
   media_url?: string;
+  metadata?: any;
   created_at: string;
 }
 
@@ -75,6 +76,7 @@ export function MessagePanel({
               sender_name={message.sender_name || 'Usuário'}
               message_type={message.message_type}
               media_url={message.media_url}
+              metadata={message.metadata}
               created_at={message.created_at}
             />
           ))

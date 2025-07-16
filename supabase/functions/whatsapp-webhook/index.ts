@@ -253,7 +253,7 @@ async function processMessages(supabase: any, value: any) {
     }
 
     // Save message
-    await supabase.from('messages').insert({
+    const { data: savedMessage } = await supabase.from('messages').insert({
       conversation_id: conversation.id,
       whatsapp_message_id: messageId,
       sender_type: 'customer',
@@ -262,7 +262,18 @@ async function processMessages(supabase: any, value: any) {
       message_type: messageType,
       media_url: mediaUrl,
       metadata: { original_message: message }
-    });
+    }).select().single();
+
+    // Process media in background if exists
+    if (mediaUrl && savedMessage) {
+      // Use EdgeRuntime.waitUntil to process media without blocking response
+      EdgeRuntime.waitUntil(processMediaInBackground(supabase, {
+        mediaId: mediaUrl,
+        conversationId: conversation.id,
+        messageId: savedMessage.id,
+        messageType: messageType
+      }));
+    }
 
     // Add to message queue for batching
     await supabase.from('message_queue').insert({
@@ -283,4 +294,76 @@ async function processMessages(supabase: any, value: any) {
   }
   
   return null;
+}
+
+async function processMediaInBackground(supabase: any, params: {
+  mediaId: string;
+  conversationId: string;
+  messageId: string;
+  messageType: string;
+}) {
+  try {
+    console.log(`Processando mídia em background: ${params.mediaId}`);
+
+    // Call the media processor function
+    const { data, error } = await supabase.functions.invoke('whatsapp-media-processor', {
+      body: {
+        mediaId: params.mediaId,
+        conversationId: params.conversationId,
+        messageType: params.messageType
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data?.success && data?.publicUrl) {
+      // Update message with the processed media URL
+      await supabase
+        .from('messages')
+        .update({ 
+          media_url: data.publicUrl,
+          metadata: { 
+            original_media_id: params.mediaId,
+            file_name: data.fileName,
+            mime_type: data.mimeType,
+            file_size: data.fileSize,
+            processed_at: new Date().toISOString()
+          }
+        })
+        .eq('id', params.messageId);
+
+      console.log(`Mídia processada com sucesso: ${data.publicUrl}`);
+    }
+
+  } catch (error) {
+    console.error('Erro ao processar mídia em background:', error);
+    
+    // Log the error and mark media as failed
+    await supabase.from('system_logs').insert({
+      type: 'error',
+      source: 'whatsapp-webhook-media-processing',
+      message: `Falha ao processar mídia ${params.mediaId}`,
+      details: {
+        error: error.message,
+        media_id: params.mediaId,
+        conversation_id: params.conversationId,
+        message_id: params.messageId
+      }
+    });
+
+    // Update message to indicate processing failed
+    await supabase
+      .from('messages')
+      .update({ 
+        metadata: { 
+          original_media_id: params.mediaId,
+          processing_failed: true,
+          error: error.message,
+          failed_at: new Date().toISOString()
+        }
+      })
+      .eq('id', params.messageId);
+  }
 }

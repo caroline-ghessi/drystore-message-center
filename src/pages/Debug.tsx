@@ -18,6 +18,7 @@ import LogViewer from "@/components/Debug/LogViewer";
 import { DifyChatTest } from "@/components/Debug/DifyChatTest";
 import { DifyChatTestWithFiles } from "@/components/Debug/DifyChatTestWithFiles";
 import { AIAgentTest } from "@/components/Debug/AIAgentTest";
+import { MediaRetryTest } from "@/components/Debug/MediaRetryTest";
 import { useSystemLogs, useConnectionStatus } from "@/hooks/useDebugData";
 
 export default function Debug() {
@@ -109,6 +110,7 @@ export default function Debug() {
 
         <TabsContent value="whatsapp" className="space-y-4">
           <WhatsAppTester />
+          <MediaRetryTest />
         </TabsContent>
 
         <TabsContent value="dify" className="space-y-4">

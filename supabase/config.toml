@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.whatsapp-send]
 verify_jwt = true
+
+[functions.retry-media-processing]
+verify_jwt = false
