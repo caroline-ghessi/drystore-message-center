@@ -135,22 +135,33 @@ async function processBufferedMessages(
     console.log(`Processing grouped message for ${phoneNumber}: ${groupedMessage}`);
 
     // Busca configuração do Dify
-    const { data: integration } = await supabase
+    const { data: integration, error: integrationError } = await supabase
       .from('integrations')
       .select('config, active')
       .eq('type', 'dify')
-      .eq('active', true)
       .single();
 
-    if (!integration?.config) {
-      throw new Error('Dify integration not configured');
+    console.log('Dify integration found:', integration);
+
+    if (integrationError || !integration) {
+      throw new Error(`Dify integration not found: ${integrationError?.message || 'No integration data'}`);
+    }
+
+    if (!integration.active) {
+      throw new Error('Dify integration is not active');
+    }
+
+    if (!integration.config?.api_url) {
+      throw new Error('Dify integration not properly configured - missing api_url');
     }
 
     const config = integration.config as { api_url: string };
     const apiKey = Deno.env.get('DIFY_API_KEY');
     
+    console.log('Dify config:', { api_url: config.api_url, has_api_key: !!apiKey });
+    
     if (!apiKey) {
-      throw new Error('DIFY_API_KEY not found in secrets');
+      throw new Error('DIFY_API_KEY not found in secrets. Please configure it in Supabase dashboard.');
     }
 
     // Prepara payload para Dify
@@ -173,6 +184,9 @@ async function processBufferedMessages(
     }
 
     // Envia para Dify
+    console.log(`Sending to Dify: ${config.api_url}/chat-messages`);
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    
     const response = await fetch(`${config.api_url}/chat-messages`, {
       method: 'POST',
       headers: {
@@ -184,7 +198,8 @@ async function processBufferedMessages(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Dify API error: ${response.statusText} - ${errorText}`);
+      console.error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     const difyResponse: DifyResponse = await response.json();
