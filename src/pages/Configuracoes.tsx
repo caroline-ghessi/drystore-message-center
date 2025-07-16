@@ -87,13 +87,17 @@ export default function Configuracoes() {
   };
 
   const handleDeleteSeller = async (id: string) => {
+    console.log("🗑️ Configurações: Recebido pedido de exclusão do vendedor:", id);
     try {
+      console.log("🔥 Configurações: Chamando deleteSeller.mutateAsync...");
       await deleteSeller.mutateAsync(id);
+      console.log("✅ Configurações: Exclusão bem-sucedida, mostrando toast");
       toast({
         title: "Vendedor excluído",
         description: "Vendedor foi marcado como inativo com sucesso.",
       });
     } catch (error) {
+      console.error("❌ Configurações: Erro na exclusão:", error);
       toast({
         title: "Erro ao excluir",
         description: "Não foi possível excluir o vendedor. Tente novamente.",

@@ -142,10 +142,13 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
   };
 
   const handleDelete = async () => {
+    console.log("🎯 Iniciando exclusão do vendedor:", seller.name, seller.id);
     setIsDeleting(true);
     try {
       await onDelete(seller.id);
+      console.log("✅ Vendedor excluído com sucesso no SellerCard");
     } catch (error) {
+      console.error("❌ Erro na exclusão do vendedor no SellerCard:", error);
       // Error handling is done in the parent component
     } finally {
       setIsDeleting(false);

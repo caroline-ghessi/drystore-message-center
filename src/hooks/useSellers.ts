@@ -47,13 +47,20 @@ export function useDeleteSeller() {
   
   return useMutation({
     mutationFn: async (sellerId: string) => {
+      console.log("🗑️ Iniciando exclusão do vendedor:", sellerId);
+      
       // Soft delete - mark as inactive instead of deleting
       const { error: sellerError } = await supabase
         .from("sellers")
         .update({ active: false })
         .eq("id", sellerId);
 
-      if (sellerError) throw sellerError;
+      if (sellerError) {
+        console.error("❌ Erro ao marcar vendedor como inativo:", sellerError);
+        throw sellerError;
+      }
+
+      console.log("✅ Vendedor marcado como inativo com sucesso");
 
       // Log the deletion
       const { error: logError } = await supabase
@@ -67,12 +74,26 @@ export function useDeleteSeller() {
           },
         });
 
-      if (logError) throw logError;
+      if (logError) {
+        console.warn("⚠️ Erro ao criar log, mas exclusão foi bem-sucedida:", logError);
+      }
 
       return { sellerId };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("🔄 Invalidando cache após exclusão bem-sucedida:", data.sellerId);
+      
+      // Invalidate all seller-related queries
       queryClient.invalidateQueries({ queryKey: ["sellers"] });
+      queryClient.invalidateQueries({ queryKey: ["sellers", "active"] });
+      
+      // Force immediate refetch
+      queryClient.refetchQueries({ queryKey: ["sellers"] });
+      
+      console.log("✅ Cache invalidado e refetch forçado");
+    },
+    onError: (error) => {
+      console.error("❌ Erro na exclusão do vendedor:", error);
     },
   });
 }
