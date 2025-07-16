@@ -134,6 +134,22 @@ export function useUpdateSeller() {
   });
 }
 
+export function useDeletedSellerByPhone() {
+  return useMutation({
+    mutationFn: async (phoneNumber: string) => {
+      const { data, error } = await supabase
+        .from("sellers")
+        .select("*")
+        .eq("phone_number", phoneNumber)
+        .eq("deleted", true)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as Seller | null;
+    },
+  });
+}
+
 export function useRestoreSeller() {
   const queryClient = useQueryClient();
   
@@ -141,7 +157,11 @@ export function useRestoreSeller() {
     mutationFn: async (sellerId: string) => {
       const { error } = await supabase
         .from("sellers")
-        .update({ deleted: false })
+        .update({ 
+          deleted: false,
+          active: true,
+          updated_at: new Date().toISOString()
+        })
         .eq("id", sellerId);
 
       if (error) throw error;

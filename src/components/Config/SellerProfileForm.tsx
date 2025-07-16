@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useProductCategories } from "@/hooks/useProductCategories";
 import { useClientTypes } from "@/hooks/useClientTypes";
 import { useCreateSeller, useUpdateSeller, useUpdateSellerSkills, useUpdateSellerSpecialties } from "@/hooks/useSellerProfile";
+import { useDeletedSellerByPhone, useRestoreSeller } from "@/hooks/useSellers";
+import { RestoreSellerDialog } from "./RestoreSellerDialog";
 import { User, Upload, Star, Target, Brain, Briefcase, X } from "lucide-react";
 
 interface SellerProfileFormProps {
@@ -58,6 +60,8 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
     initialData?.seller_specialties?.map((s: any) => ({ product_category_id: s.product_category_id, expertise_level: s.expertise_level })) || []
   );
   const [newSkill, setNewSkill] = useState({ skill_name: "", skill_type: "soft", proficiency_level: 3, description: "" });
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [deletedSeller, setDeletedSeller] = useState<any>(null);
 
   const { data: productCategories = [] } = useProductCategories();
   const { data: clientTypes = [] } = useClientTypes();
@@ -65,6 +69,8 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
   const updateSeller = useUpdateSeller();
   const updateSkills = useUpdateSellerSkills();
   const updateSpecialties = useUpdateSellerSpecialties();
+  const checkDeletedSeller = useDeletedSellerByPhone();
+  const restoreSeller = useRestoreSeller();
 
   const addSkill = () => {
     if (newSkill.skill_name.trim()) {
@@ -92,7 +98,70 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
     ));
   };
 
+  const checkForDeletedSeller = async (phoneNumber: string) => {
+    if (!phoneNumber || sellerId) return; // Skip if editing existing seller
+    
+    try {
+      const deletedSellerData = await checkDeletedSeller.mutateAsync(phoneNumber);
+      if (deletedSellerData) {
+        setDeletedSeller(deletedSellerData);
+        setShowRestoreDialog(true);
+      }
+    } catch (error) {
+      console.error("Error checking for deleted seller:", error);
+    }
+  };
+
+  const handleRestoreSeller = async () => {
+    if (!deletedSeller) return;
+    
+    try {
+      await restoreSeller.mutateAsync(deletedSeller.id);
+      
+      // Pre-fill form with existing data
+      form.reset({
+        name: deletedSeller.name,
+        phone_number: deletedSeller.phone_number,
+        email: deletedSeller.email || "",
+        bio: deletedSeller.bio || "",
+        experience_years: deletedSeller.experience_years || 0,
+        personality_type: deletedSeller.personality_type || "consultivo",
+        max_concurrent_leads: deletedSeller.max_concurrent_leads || 10,
+        whapi_token: deletedSeller.whapi_token || "",
+        auto_first_message: deletedSeller.auto_first_message || false,
+        avatar_url: deletedSeller.avatar_url || "",
+      });
+
+      toast({
+        title: "Vendedor Restaurado!",
+        description: "O vendedor foi restaurado com sucesso. Você pode editar os dados se necessário.",
+      });
+
+      setShowRestoreDialog(false);
+      setDeletedSeller(null);
+    } catch (error) {
+      console.error("Error restoring seller:", error);
+      toast({
+        title: "Erro",
+        description: "Erro ao restaurar vendedor",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCreateNewSeller = () => {
+    setShowRestoreDialog(false);
+    setDeletedSeller(null);
+    // Keep current form data and allow user to proceed with new phone number
+  };
+
   const onSubmit = async (data: FormData) => {
+    // Check for deleted seller before creating new one
+    if (!sellerId) {
+      await checkForDeletedSeller(data.phone_number);
+      if (showRestoreDialog) return; // Stop submission if restore dialog is shown
+    }
+
     try {
       let sellerResult;
       
@@ -464,6 +533,16 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
           </div>
         </form>
       </Form>
+
+      {deletedSeller && (
+        <RestoreSellerDialog
+          open={showRestoreDialog}
+          onClose={() => setShowRestoreDialog(false)}
+          onRestore={handleRestoreSeller}
+          onCreateNew={handleCreateNewSeller}
+          seller={deletedSeller}
+        />
+      )}
     </div>
   );
 }
