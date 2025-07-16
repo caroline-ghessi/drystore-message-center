@@ -365,11 +365,11 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Tem certeza que deseja excluir o vendedor <strong>{seller.name}</strong>? 
-                  Esta ação irá marcar o vendedor como inativo e ele não aparecerá mais na lista.
-                  O histórico de conversas e leads será mantido.
-                </AlertDialogDescription>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o vendedor <strong>{seller.name}</strong>? 
+                Esta ação irá remover o vendedor da plataforma. Ele não aparecerá mais em nenhuma lista.
+                O histórico de conversas e leads será mantido para fins de auditoria.
+              </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>

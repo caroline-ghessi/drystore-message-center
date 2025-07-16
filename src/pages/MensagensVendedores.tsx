@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
 import { Search, Phone, Clock, MessageSquare, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSellers } from "@/hooks/useSellers";
+import { useActiveSellers } from "@/hooks/useSellers";
 import { useConversationMessages } from "@/hooks/useConversationMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -33,8 +33,8 @@ export default function MensagensVendedores() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('');
 
-  // Buscar vendedores reais
-  const { sellers: realSellers, isLoading: sellersLoading } = useSellers();
+  // Buscar apenas vendedores ativos e não excluídos
+  const { data: realSellers, isLoading: sellersLoading } = useActiveSellers();
   
   // Buscar conversas do vendedor ativo
   const { data: sellerConversations, isLoading: conversationsLoading } = useQuery({

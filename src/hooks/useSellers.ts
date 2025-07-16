@@ -11,6 +11,7 @@ export function useSellers() {
       const { data, error } = await supabase
         .from("sellers")
         .select("*")
+        .eq("deleted", false)
         .order("name");
         
       if (error) throw error;
@@ -32,6 +33,7 @@ export function useActiveSellers() {
       const { data, error } = await supabase
         .from("sellers")
         .select("*")
+        .eq("deleted", false)
         .eq("active", true)
         .order("name");
         
@@ -48,18 +50,18 @@ export function useDeleteSeller() {
     mutationFn: async (sellerId: string) => {
       console.log("🗑️ Iniciando exclusão do vendedor:", sellerId);
       
-      // Soft delete - mark as inactive instead of deleting
+      // True delete - mark as deleted (removes from interface)
       const { error: sellerError } = await supabase
         .from("sellers")
-        .update({ active: false })
+        .update({ deleted: true })
         .eq("id", sellerId);
 
       if (sellerError) {
-        console.error("❌ Erro ao marcar vendedor como inativo:", sellerError);
+        console.error("❌ Erro ao marcar vendedor como excluído:", sellerError);
         throw sellerError;
       }
 
-      console.log("✅ Vendedor marcado como inativo com sucesso");
+      console.log("✅ Vendedor marcado como excluído com sucesso");
 
       // Log the deletion
       const { error: logError } = await supabase
@@ -67,7 +69,7 @@ export function useDeleteSeller() {
         .insert({
           type: "seller_deleted",
           source: "admin_action",
-          message: `Vendedor marcado como inativo`,
+          message: `Vendedor excluído`,
           details: {
             seller_id: sellerId,
           },
@@ -128,6 +130,26 @@ export function useUpdateSeller() {
     },
     onError: (error) => {
       console.error("❌ Erro na atualização do vendedor:", error);
+    },
+  });
+}
+
+export function useRestoreSeller() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (sellerId: string) => {
+      const { error } = await supabase
+        .from("sellers")
+        .update({ deleted: false })
+        .eq("id", sellerId);
+
+      if (error) throw error;
+      return { sellerId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+      queryClient.invalidateQueries({ queryKey: ["sellers", "active"] });
     },
   });
 }

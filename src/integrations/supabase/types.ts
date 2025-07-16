@@ -618,6 +618,7 @@ export type Database = {
           conversion_rate: number | null
           created_at: string | null
           current_workload: number | null
+          deleted: boolean | null
           email: string | null
           experience_years: number | null
           id: string
@@ -643,6 +644,7 @@ export type Database = {
           conversion_rate?: number | null
           created_at?: string | null
           current_workload?: number | null
+          deleted?: boolean | null
           email?: string | null
           experience_years?: number | null
           id?: string
@@ -668,6 +670,7 @@ export type Database = {
           conversion_rate?: number | null
           created_at?: string | null
           current_workload?: number | null
+          deleted?: boolean | null
           email?: string | null
           experience_years?: number | null
           id?: string

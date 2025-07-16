@@ -94,7 +94,7 @@ export default function Configuracoes() {
       console.log("✅ Configurações: Exclusão bem-sucedida, mostrando toast");
       toast({
         title: "Vendedor excluído",
-        description: "Vendedor foi marcado como inativo com sucesso.",
+        description: "Vendedor foi removido da plataforma com sucesso.",
       });
     } catch (error) {
       console.error("❌ Configurações: Erro na exclusão:", error);
