@@ -143,8 +143,8 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+    <div className="h-full overflow-y-auto bg-background">
+      <div className="p-6 space-y-4">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
