@@ -197,23 +197,17 @@ export default function Configuracoes() {
         </TabsContent>
 
         {/* Profile Details Tab */}
-        <TabsContent value="profile-details" className="space-y-6">
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-drystore-orange" />
-                <span>Cadastro Detalhado de Vendedor</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SellerProfileForm onSuccess={() => {
-                toast({
-                  title: "Sucesso!",
-                  description: "Vendedor cadastrado com sucesso",
-                });
-              }} />
-            </CardContent>
-          </Card>
+        <TabsContent value="profile-details" className="space-y-4">
+          <div className="flex items-center space-x-2 mb-4">
+            <Users className="h-5 w-5 text-drystore-orange" />
+            <h2 className="text-xl font-semibold">Cadastro Detalhado de Vendedor</h2>
+          </div>
+          <SellerProfileForm onSuccess={() => {
+            toast({
+              title: "Sucesso!",
+              description: "Vendedor cadastrado com sucesso",
+            });
+          }} />
         </TabsContent>
 
         {/* Rodrigo Bot Tab */}
