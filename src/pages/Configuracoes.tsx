@@ -143,8 +143,8 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
@@ -163,7 +163,7 @@ export default function Configuracoes() {
         </TabsList>
 
         {/* Sellers Tab */}
-        <TabsContent value="sellers" className="space-y-6">
+        <TabsContent value="sellers" className="space-y-4">
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">

@@ -127,7 +127,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
   };
 
   return (
-    <div className="max-h-[calc(100vh-200px)] overflow-y-auto space-y-3">
+    <div className="space-y-3">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           {/* Dados Pessoais */}
