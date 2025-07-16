@@ -199,12 +199,17 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
   };
 
   return (
-    <Card className="shadow-card">
+    <Card className={`shadow-card ${!seller.active ? 'opacity-60' : ''}`}>
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center space-x-2">
             <User className="h-5 w-5 text-drystore-orange" />
             <span>{seller.name}</span>
+            {!seller.active && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                Inativo
+              </Badge>
+            )}
           </CardTitle>
           <Badge className={getStatusColor(seller.whapi_status, seller.active)}>
             {getStatusIcon(seller.whapi_status, seller.active)}

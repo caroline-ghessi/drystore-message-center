@@ -11,7 +11,6 @@ export function useSellers() {
       const { data, error } = await supabase
         .from("sellers")
         .select("*")
-        .eq("active", true)
         .order("name");
         
       if (error) throw error;
