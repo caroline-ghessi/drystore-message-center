@@ -130,7 +130,8 @@ async function processMessage(supabase: any, message: WhapiMessage) {
         .single()
 
       if (rodrigoConfig.data) {
-        console.log('Mensagem do Rodrigo Bot detectada:', message)
+        console.log('Mensagem enviada pelo Rodrigo Bot (uso interno):', message)
+        // Rodrigo Bot apenas ENVIA mensagens, não processa recebidas
       } else {
         console.log('Mensagem de número não identificado:', message.from, message.to)
       }

@@ -106,7 +106,7 @@ export function RodrigoBotWhapiCard() {
               {getStatusBadge()}
             </CardTitle>
             <CardDescription>
-              Bot responsável por envio de leads e alertas aos vendedores e gestores
+              <strong>Uso Interno:</strong> Bot responsável por envio de leads e alertas aos vendedores e gestores
             </CardDescription>
           </div>
         </div>

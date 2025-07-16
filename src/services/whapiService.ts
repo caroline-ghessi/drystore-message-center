@@ -142,7 +142,7 @@ export class WhapiService {
   }
 
   /**
-   * Envia lead do Rodrigo Bot para vendedor
+   * Envia lead para vendedor via Rodrigo Bot (uso interno)
    */
   async sendLeadToSeller(
     sellerId: string,
@@ -152,6 +152,8 @@ export class WhapiService {
     conversationId: string
   ): Promise<void> {
     try {
+      console.log('Enviando lead para vendedor via Rodrigo Bot:', { sellerId, customerName });
+
       // Buscar dados do vendedor
       const { data: seller, error: sellerError } = await supabase
         .from('sellers')
@@ -160,7 +162,7 @@ export class WhapiService {
         .single();
 
       if (sellerError || !seller) {
-        throw new Error('Vendedor não encontrado');
+        throw new Error(`Vendedor não encontrado: ${sellerId}`);
       }
 
       // Buscar configuração do Rodrigo Bot
@@ -172,55 +174,74 @@ export class WhapiService {
         .single();
 
       if (configError || !rodrigoConfig) {
-        throw new Error('Configuração do Rodrigo Bot não encontrada');
+        throw new Error('Rodrigo Bot WHAPI não configurado');
       }
 
-      // Buscar token do Rodrigo Bot (secret)
+      // Buscar token do Rodrigo Bot
       const rodrigoToken = await this.getSecretValue(rodrigoConfig.token_secret_name);
       
       if (!rodrigoToken) {
-        throw new Error('Token do Rodrigo Bot não configurado');
+        throw new Error('Token do Rodrigo Bot não encontrado nos secrets');
       }
 
-      // Formatar mensagem do lead
-      const message = this.formatLeadMessage(leadSummary, customerName, customerPhone);
+      // Formatar mensagem para uso interno (lead para vendedor)
+      const message = `🎯 *Novo Lead Recebido*
 
-      // Enviar para o vendedor
-      await this.sendMessage(rodrigoToken, seller.phone_number, message);
+*Cliente:* ${customerName}
+*Telefone:* ${customerPhone}
+
+*Resumo do Atendimento:*
+${leadSummary}
+
+---
+_Lead distribuído pelo Rodrigo Bot_
+_Responda diretamente para o cliente_`;
+
+      // Enviar mensagem via Rodrigo Bot
+      const response = await this.sendMessage(rodrigoToken, seller.phone_number, message);
+
+      if (!response.success) {
+        throw new Error(`Falha ao enviar lead: ${response.error}`);
+      }
 
       // Atualizar status do lead
       await supabase
         .from('leads')
         .update({ 
           sent_at: new Date().toISOString(),
-          status: 'attending' 
+          status: 'sent_to_seller',
+          seller_id: sellerId
         })
         .eq('conversation_id', conversationId);
 
       // Log do envio
       await supabase.from('system_logs').insert({
-        type: 'success',
-        source: 'whapi-service',
-        message: `Lead enviado ao vendedor ${seller.name}`,
+        type: 'info',
+        source: 'rodrigo-bot',
+        message: 'Lead enviado para vendedor',
         details: {
-          seller_id: sellerId,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          conversation_id: conversationId
+          sellerId,
+          sellerName: seller.name,
+          customerName,
+          customerPhone,
+          conversationId,
+          messageId: response.message_id
         }
       });
 
-      // Se primeira mensagem automática estiver ativa
+      console.log('Lead enviado com sucesso via Rodrigo Bot:', sellerId);
+
+      // Se primeira mensagem automática estiver ativa, usar WHAPI do vendedor
       if (seller.auto_first_message && seller.whapi_status === 'connected') {
         await this.sendAutoFirstMessage(seller, customerPhone, leadSummary);
       }
 
     } catch (error) {
-      console.error('Erro ao enviar lead para vendedor:', error);
+      console.error('Erro ao enviar lead via Rodrigo Bot:', error);
       
       await supabase.from('system_logs').insert({
         type: 'error',
-        source: 'whapi-service',
+        source: 'rodrigo-bot',
         message: 'Erro ao enviar lead para vendedor',
         details: { error: error.message, sellerId, conversationId }
       });
@@ -270,7 +291,7 @@ export class WhapiService {
   }
 
   /**
-   * Envia alerta para gestores
+   * Envia alertas para gestores via Rodrigo Bot (uso interno)
    */
   async sendAlertToManagers(
     alertType: 'poor_service' | 'delayed_response' | 'lost_opportunity',
@@ -282,46 +303,112 @@ export class WhapiService {
     }
   ): Promise<void> {
     try {
+      console.log('Enviando alerta para gestores via Rodrigo Bot:', { alertType, details });
+
+      // Buscar números dos gestores na configuração
+      const { data: managersConfig, error: configError } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'manager_phones')
+        .single();
+
+      if (configError || !managersConfig) {
+        console.log('Números de gestores não configurados');
+        return;
+      }
+
+      const managerPhones = managersConfig.value as string[];
+      if (!managerPhones || managerPhones.length === 0) {
+        console.log('Lista de gestores vazia');
+        return;
+      }
+
       // Buscar configuração do Rodrigo Bot
-      const { data: rodrigoConfig } = await supabase
+      const { data: rodrigoConfig, error: rodrigoError } = await supabase
         .from('whapi_configurations')
         .select('*')
         .eq('type', 'rodrigo_bot')
         .eq('active', true)
         .single();
 
-      if (!rodrigoConfig) {
-        console.warn('Rodrigo Bot não configurado para envio de alertas');
-        return;
+      if (rodrigoError || !rodrigoConfig) {
+        throw new Error('Rodrigo Bot WHAPI não configurado');
       }
 
+      // Buscar token do Rodrigo Bot
       const rodrigoToken = await this.getSecretValue(rodrigoConfig.token_secret_name);
       
       if (!rodrigoToken) {
-        console.warn('Token do Rodrigo Bot não encontrado');
-        return;
+        throw new Error('Token do Rodrigo Bot não encontrado');
       }
 
-      // Buscar gestores (pode ser implementado com tabela de gestores)
-      // Por enquanto, usar um número fixo ou configuração
-      const managerPhone = '5551999999999'; // Implementar busca real
+      // Preparar mensagem de alerta
+      const alertConfig = {
+        poor_service: {
+          emoji: '⚠️',
+          title: 'Alerta de Qualidade de Atendimento'
+        },
+        delayed_response: {
+          emoji: '⏰',
+          title: 'Alerta de Atraso na Resposta'
+        },
+        lost_opportunity: {
+          emoji: '❌',
+          title: 'Alerta de Oportunidade Perdida'
+        }
+      };
 
-      // Formatar mensagem de alerta
-      const alertMessage = this.formatAlertMessage(alertType, details);
+      const config = alertConfig[alertType];
+      const message = `${config.emoji} *${config.title}*
 
-      // Enviar alerta
-      await this.sendMessage(rodrigoToken, managerPhone, alertMessage);
+*Vendedor:* ${details.sellerName}
+*Cliente:* ${details.customerName}
+*Problema:* ${details.issue}
 
-      // Log do alerta
+*ID da Conversa:* ${details.conversationId}
+
+---
+_Alerta automático do sistema de monitoramento_`;
+
+      // Enviar para todos os gestores
+      let successCount = 0;
+      for (const managerPhone of managerPhones) {
+        try {
+          await this.sendMessage(rodrigoToken, managerPhone, message);
+          successCount++;
+          console.log('Alerta enviado para gestor:', managerPhone);
+        } catch (error) {
+          console.error('Erro ao enviar alerta para gestor:', managerPhone, error);
+        }
+      }
+
+      // Log da ação
       await supabase.from('system_logs').insert({
-        type: 'warning',
-        source: 'whapi-service',
-        message: `Alerta ${alertType} enviado aos gestores`,
-        details: details
+        type: 'info',
+        source: 'rodrigo-bot',
+        message: 'Alerta enviado para gestores',
+        details: {
+          alertType,
+          managersTotal: managerPhones.length,
+          managersNotified: successCount,
+          ...details
+        }
       });
 
+      console.log(`Alerta enviado para ${successCount}/${managerPhones.length} gestores`);
+
     } catch (error) {
-      console.error('Erro ao enviar alerta aos gestores:', error);
+      console.error('Erro ao enviar alerta para gestores:', error);
+      
+      // Log do erro
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'rodrigo-bot',
+        message: 'Erro ao enviar alerta para gestores',
+        details: { alertType, error: error.message, ...details }
+      });
+
+      throw error;
     }
   }
 

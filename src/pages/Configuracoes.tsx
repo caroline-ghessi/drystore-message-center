@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 // Import new components
 import SellerCard from "@/components/Config/SellerCard";
 import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
+import { RodrigoBotWhapiCard } from "@/components/Config/RodrigoBotWhapiCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
 import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
 import SellerProfileForm from "@/components/Config/SellerProfileForm";
@@ -212,53 +213,44 @@ export default function Configuracoes() {
         {/* Rodrigo Bot Tab */}
         <TabsContent value="rodrigo-bot" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <RodrigoBotCard
-              status={rodrigoBot.status}
-              webhook_url={rodrigoBot.webhook_url}
-              phone_number={rodrigoBot.phone_number}
-              last_test={rodrigoBot.last_test}
-              messages_sent_today={rodrigoBot.messages_sent_today}
-              onUpdate={handleUpdateRodrigoBot}
-              onTestIntegration={handleTestRodrigoBotIntegration}
-            />
+            <RodrigoBotWhapiCard />
             
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Shield className="h-5 w-5 text-drystore-orange" />
-                  <span>Configurações do Rodrigo Bot</span>
+                  <span>Funcionalidades Internas</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="bot-greeting">Mensagem de Boas-vindas</Label>
-                  <textarea
-                    id="bot-greeting"
-                    className="w-full p-3 border rounded-lg resize-none"
-                    rows={3}
-                    defaultValue="Olá! Sou o Rodrigo Bot da Drystore. Estou aqui para ajudar com informações sobre nossos produtos e serviços. Como posso ajudar?"
-                  />
+                <div className="space-y-3">
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <h4 className="font-medium text-blue-800 mb-1">🎯 Envio de Leads</h4>
+                    <p className="text-sm text-blue-700">
+                      Distribui leads qualificados para vendedores automaticamente
+                    </p>
+                  </div>
+                  
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <h4 className="font-medium text-orange-800 mb-1">⚠️ Alertas de Gestão</h4>
+                    <p className="text-sm text-orange-700">
+                      Notifica gestores sobre atrasos, oportunidades perdidas e problemas de atendimento
+                    </p>
+                  </div>
+                  
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <h4 className="font-medium text-green-800 mb-1">📊 Monitoramento</h4>
+                    <p className="text-sm text-green-700">
+                      Todas as mensagens são registradas para análise de performance
+                    </p>
+                  </div>
                 </div>
                 
-                <div>
-                  <Label htmlFor="bot-timeout">Timeout de Resposta (segundos)</Label>
-                  <Input
-                    id="bot-timeout"
-                    type="number"
-                    defaultValue={10}
-                    min="5"
-                    max="60"
-                  />
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Nota:</strong> O Rodrigo Bot é de uso interno exclusivo. Não recebe mensagens de clientes.
+                  </p>
                 </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch id="bot-auto-response" defaultChecked />
-                  <Label htmlFor="bot-auto-response">Respostas automáticas ativas</Label>
-                </div>
-                
-                <Button className="w-full">
-                  Salvar Configurações
-                </Button>
               </CardContent>
             </Card>
           </div>
