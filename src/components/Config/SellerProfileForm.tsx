@@ -127,9 +127,9 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
   };
 
   return (
-    <div className="space-y-3">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
           {/* Dados Pessoais */}
           <Card>
             <CardHeader>
@@ -138,21 +138,21 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Dados Pessoais</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 p-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="w-12 h-12">
+            <CardContent className="space-y-4 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-3 sm:space-y-0 sm:space-x-4">
+                <Avatar className="w-16 h-16 sm:w-12 sm:h-12">
                   <AvatarImage src={form.watch("avatar_url")} />
                   <AvatarFallback>
                     {form.watch("name")?.charAt(0)?.toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <Button type="button" variant="outline" size="sm">
+                <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto h-10">
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Foto
                 </Button>
               </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <FormField
                   control={form.control}
                   name="name"
@@ -215,9 +215,13 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 name="bio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Biografia/Apresentação</FormLabel>
+                    <FormLabel className="text-sm sm:text-base">Biografia/Apresentação</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Conte um pouco sobre a experiência e especialidades do vendedor..." {...field} />
+                      <Textarea 
+                        placeholder="Conte um pouco sobre a experiência e especialidades do vendedor..." 
+                        {...field} 
+                        className="w-full min-h-[100px] sm:min-h-[120px] resize-y"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -234,14 +238,14 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Especialidades em Produtos</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <CardContent className="space-y-3 p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {productCategories.map((category) => {
                   const specialty = specialties.find(s => s.product_category_id === category.id);
                   const isSelected = !!specialty;
                   
                   return (
-                    <div key={category.id} className="border rounded-lg p-2 space-y-1">
+                    <div key={category.id} className="border rounded-lg p-3 space-y-2 min-h-[80px]">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">{category.name}</Label>
                         <Switch
@@ -254,7 +258,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                           value={specialty?.expertise_level}
                           onValueChange={(value) => updateSpecialtyLevel(category.id, value)}
                         >
-                          <SelectTrigger className="h-8">
+                          <SelectTrigger className="h-9">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -280,18 +284,19 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Habilidades</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <CardContent className="space-y-3 p-4 sm:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
                 <Input
                   placeholder="Nome da habilidade"
                   value={newSkill.skill_name}
                   onChange={(e) => setNewSkill({...newSkill, skill_name: e.target.value})}
+                  className="w-full h-10"
                 />
                 <Select
                   value={newSkill.skill_type}
                   onValueChange={(value) => setNewSkill({...newSkill, skill_type: value})}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -304,7 +309,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                   value={newSkill.proficiency_level.toString()}
                   onValueChange={(value) => setNewSkill({...newSkill, proficiency_level: parseInt(value)})}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -315,7 +320,12 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                     <SelectItem value="5">Nível 5</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button type="button" onClick={addSkill} variant="outline">
+                <Button 
+                  type="button" 
+                  onClick={addSkill} 
+                  variant="outline" 
+                  className="w-full sm:w-auto h-10"
+                >
                   Adicionar
                 </Button>
               </div>
@@ -348,17 +358,17 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                 <span>Configurações de Trabalho</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <CardContent className="space-y-3 p-4 sm:p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 <FormField
                   control={form.control}
                   name="personality_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Tipo de Personalidade</FormLabel>
+                      <FormLabel className="text-sm sm:text-base">Tipo de Personalidade</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
@@ -379,9 +389,16 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                   name="max_concurrent_leads"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Máximo de Leads Simultâneos</FormLabel>
+                      <FormLabel className="text-sm sm:text-base">Máximo de Leads Simultâneos</FormLabel>
                       <FormControl>
-                        <Input type="number" min="1" max="50" {...field} onChange={e => field.onChange(parseInt(e.target.value) || 10)} />
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          max="50" 
+                          {...field} 
+                          onChange={e => field.onChange(parseInt(e.target.value) || 10)}
+                          className="h-10"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -393,28 +410,33 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                   name="whapi_token"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Token WHAPI</FormLabel>
+                      <FormLabel className="text-sm sm:text-base">Token WHAPI</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Token de integração WHAPI" {...field} />
+                        <Input 
+                          type="password" 
+                          placeholder="Token de integração WHAPI" 
+                          {...field}
+                          className="h-10"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3 pt-6">
                   <FormField
                     control={form.control}
                     name="auto_first_message"
                     render={({ field }) => (
-                      <FormItem className="flex items-center space-x-2">
+                      <FormItem className="flex items-center space-x-3">
                         <FormControl>
                           <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
                           />
                         </FormControl>
-                        <FormLabel>Primeira mensagem automática</FormLabel>
+                        <FormLabel className="text-sm sm:text-base">Primeira mensagem automática</FormLabel>
                       </FormItem>
                     )}
                   />
@@ -423,11 +445,20 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
             </CardContent>
           </Card>
 
-          <div className="flex justify-end space-x-2 pt-3 pb-2">
-            <Button type="button" variant="outline" onClick={() => onSuccess?.()}>
+          <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-2 pt-4 pb-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onSuccess?.()} 
+              className="w-full sm:w-auto h-10"
+            >
               Cancelar
             </Button>
-            <Button type="submit" disabled={createSeller.isPending || updateSeller.isPending}>
+            <Button 
+              type="submit" 
+              disabled={createSeller.isPending || updateSeller.isPending}
+              className="w-full sm:w-auto h-10"
+            >
               {sellerId ? "Atualizar" : "Cadastrar"} Vendedor
             </Button>
           </div>
