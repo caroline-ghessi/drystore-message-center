@@ -165,8 +165,12 @@ export default function MensagensOficial() {
   const handleSendMessage = async (message: string) => {
     if (!selectedConversation || !user) return;
 
+    const conversation = conversations.find(c => c.id === selectedConversation);
+    if (!conversation) return;
+
     try {
-      const { error } = await supabase
+      // 1. Salvar no banco de dados (histórico)
+      const { data: messageData, error: dbError } = await supabase
         .from('messages')
         .insert({
           conversation_id: selectedConversation,
@@ -174,19 +178,45 @@ export default function MensagensOficial() {
           sender_name: user.email || 'Operador',
           content: message,
           message_type: 'text'
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (dbError) throw dbError;
+
+      // 2. Enviar via WhatsApp API
+      console.log('Enviando mensagem via WhatsApp API:', {
+        to: conversation.phone_number,
+        content: message
+      });
+
+      const { data: sendData, error: sendError } = await supabase.functions.invoke('whatsapp-send', {
+        body: {
+          to: conversation.phone_number,
+          type: 'text',
+          content: message
+        }
+      });
+
+      if (sendError) {
+        console.error('Erro no envio WhatsApp:', sendError);
+        // Rollback da mensagem se envio falhar
+        await supabase.from('messages').delete().eq('id', messageData.id);
+        throw sendError;
+      }
+
+      console.log('Mensagem enviada com sucesso:', sendData);
 
       toast({
         title: "Mensagem enviada",
-        description: "Sua mensagem foi enviada com sucesso.",
+        description: "Sua mensagem foi entregue no WhatsApp com sucesso.",
       });
+
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error);
       toast({
-        title: "Erro",
-        description: "Erro ao enviar mensagem. Tente novamente.",
+        title: "Erro no envio",
+        description: "Erro ao enviar mensagem para o WhatsApp. Tente novamente.",
         variant: "destructive",
       });
     }
