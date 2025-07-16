@@ -187,17 +187,7 @@ export default function Configuracoes() {
                   {realSellers?.map(seller => (
                     <SellerCard 
                       key={seller.id}
-                      seller={{
-                        id: seller.id,
-                        name: seller.name,
-                        phone_number: seller.phone_number,
-                        webhook_url: `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook?seller_id=${seller.id}`,
-                        status: seller.whapi_status as 'active' | 'inactive' | 'testing' | 'error' || 'inactive',
-                        auto_first_message: seller.auto_first_message || false,
-                        created_at: seller.created_at || '',
-                        last_test: seller.whapi_last_test || undefined
-                      }}
-                      onUpdate={handleUpdateSeller}
+                      seller={seller}
                       onDelete={handleDeleteSeller}
                       onTestIntegration={handleTestSellerIntegration}
                     />

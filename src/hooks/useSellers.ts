@@ -98,6 +98,41 @@ export function useDeleteSeller() {
   });
 }
 
+export function useUpdateSeller() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: any }) => {
+      console.log("📝 Atualizando vendedor:", id, data);
+      
+      const { error } = await supabase
+        .from("sellers")
+        .update(data)
+        .eq("id", id);
+
+      if (error) {
+        console.error("❌ Erro ao atualizar vendedor:", error);
+        throw error;
+      }
+
+      console.log("✅ Vendedor atualizado com sucesso");
+      return { id, ...data };
+    },
+    onSuccess: (data) => {
+      console.log("🔄 Invalidando cache após atualização:", data.id);
+      
+      // Invalidate all seller-related queries
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+      queryClient.invalidateQueries({ queryKey: ["sellers", "active"] });
+      
+      console.log("✅ Cache invalidado após atualização");
+    },
+    onError: (error) => {
+      console.error("❌ Erro na atualização do vendedor:", error);
+    },
+  });
+}
+
 export function useTransferToSeller() {
   const queryClient = useQueryClient();
   

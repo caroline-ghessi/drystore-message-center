@@ -20,55 +20,65 @@ import {
   Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useUpdateSeller } from "@/hooks/useSellers";
+import { Tables } from "@/integrations/supabase/types";
 
-interface Seller {
-  id: string;
-  name: string;
-  phone_number: string;
-  webhook_url: string;
-  status: 'active' | 'inactive' | 'testing' | 'error';
-  auto_first_message: boolean;
-  created_at: string;
-  last_test?: string;
-}
+type Seller = Tables<"sellers">;
 
 interface SellerCardProps {
   seller: Seller;
-  onUpdate: (seller: Seller) => void;
   onDelete: (id: string) => Promise<void>;
   onTestIntegration: (id: string, token: string) => Promise<boolean>;
 }
 
-export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegration }: SellerCardProps) {
+export default function SellerCard({ seller, onDelete, onTestIntegration }: SellerCardProps) {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
+  const updateSeller = useUpdateSeller();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200';
-      case 'inactive': return 'bg-gray-100 text-gray-800 border-gray-200';
+  const getStatusColor = (whapiStatus: string | null, active: boolean | null) => {
+    if (!active) return 'bg-gray-100 text-gray-800 border-gray-200';
+    
+    switch (whapiStatus) {
+      case 'connected': return 'bg-green-100 text-green-800 border-green-200';
       case 'testing': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'error': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'disconnected':
+      default: return 'bg-orange-100 text-orange-800 border-orange-200';
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active': return <CheckCircle className="h-4 w-4" />;
-      case 'inactive': return <XCircle className="h-4 w-4" />;
+  const getStatusIcon = (whapiStatus: string | null, active: boolean | null) => {
+    if (!active) return <XCircle className="h-4 w-4" />;
+    
+    switch (whapiStatus) {
+      case 'connected': return <CheckCircle className="h-4 w-4" />;
       case 'testing': return <Loader2 className="h-4 w-4 animate-spin" />;
       case 'error': return <AlertCircle className="h-4 w-4" />;
-      default: return <XCircle className="h-4 w-4" />;
+      case 'disconnected':
+      default: return <AlertCircle className="h-4 w-4" />;
+    }
+  };
+  
+  const getStatusText = (whapiStatus: string | null, active: boolean | null) => {
+    if (!active) return 'Inativo';
+    
+    switch (whapiStatus) {
+      case 'connected': return 'Conectado';
+      case 'testing': return 'Testando';
+      case 'error': return 'Erro';
+      case 'disconnected':
+      default: return 'Desconectado';
     }
   };
 
   const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(seller.webhook_url);
+    const webhookUrl = seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`;
+    navigator.clipboard.writeText(webhookUrl);
     toast({
       title: "URL copiada!",
       description: "URL do webhook copiada para área de transferência.",
@@ -90,20 +100,22 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
       const success = await onTestIntegration(seller.id, token);
       
       if (success) {
-        onUpdate({
-          ...seller,
-          status: 'active',
-          last_test: new Date().toISOString()
+        await updateSeller.mutateAsync({
+          id: seller.id,
+          whapi_status: 'connected',
+          whapi_last_test: new Date().toISOString(),
+          whapi_token: token
         });
         toast({
           title: "Integração testada com sucesso!",
           description: "A conexão com a WHAPI está funcionando corretamente.",
         });
       } else {
-        onUpdate({
-          ...seller,
-          status: 'error',
-          last_test: new Date().toISOString()
+        await updateSeller.mutateAsync({
+          id: seller.id,
+          whapi_status: 'error',
+          whapi_last_test: new Date().toISOString(),
+          whapi_error_message: 'Falha na conexão com WHAPI'
         });
         toast({
           title: "Falha no teste",
@@ -112,10 +124,11 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
         });
       }
     } catch (error) {
-      onUpdate({
-        ...seller,
-        status: 'error',
-        last_test: new Date().toISOString()
+      await updateSeller.mutateAsync({
+        id: seller.id,
+        whapi_status: 'error',
+        whapi_last_test: new Date().toISOString(),
+        whapi_error_message: error instanceof Error ? error.message : 'Erro desconhecido'
       });
       toast({
         title: "Erro no teste",
@@ -127,18 +140,48 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
     }
   };
 
-  const toggleActive = () => {
-    onUpdate({
-      ...seller,
-      status: seller.status === 'active' ? 'inactive' : 'active'
-    });
+  const toggleActive = async () => {
+    try {
+      console.log("🔄 Alterando status ativo do vendedor:", seller.name, "de", seller.active, "para", !seller.active);
+      
+      await updateSeller.mutateAsync({
+        id: seller.id,
+        active: !seller.active
+      });
+      
+      toast({
+        title: seller.active ? "Vendedor desativado" : "Vendedor ativado",
+        description: `${seller.name} foi ${seller.active ? 'desativado' : 'ativado'} com sucesso.`,
+      });
+    } catch (error) {
+      console.error("❌ Erro ao alterar status ativo:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar o status do vendedor.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const toggleAutoMessage = () => {
-    onUpdate({
-      ...seller,
-      auto_first_message: !seller.auto_first_message
-    });
+  const toggleAutoMessage = async () => {
+    try {
+      await updateSeller.mutateAsync({
+        id: seller.id,
+        auto_first_message: !seller.auto_first_message
+      });
+      
+      toast({
+        title: seller.auto_first_message ? "Mensagem automática desativada" : "Mensagem automática ativada",
+        description: `Mensagem automática ${seller.auto_first_message ? 'desativada' : 'ativada'} para ${seller.name}.`,
+      });
+    } catch (error) {
+      console.error("❌ Erro ao alterar mensagem automática:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar a configuração de mensagem automática.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async () => {
@@ -163,9 +206,9 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
             <User className="h-5 w-5 text-drystore-orange" />
             <span>{seller.name}</span>
           </CardTitle>
-          <Badge className={getStatusColor(seller.status)}>
-            {getStatusIcon(seller.status)}
-            <span className="ml-1 capitalize">{seller.status}</span>
+          <Badge className={getStatusColor(seller.whapi_status, seller.active)}>
+            {getStatusIcon(seller.whapi_status, seller.active)}
+            <span className="ml-1">{getStatusText(seller.whapi_status, seller.active)}</span>
           </Badge>
         </div>
       </CardHeader>
@@ -177,7 +220,7 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
           </p>
           <div className="flex items-center space-x-2">
             <code className="text-xs bg-muted p-1 rounded flex-1 truncate">
-              {seller.webhook_url}
+              {seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`}
             </code>
             <Button 
               size="sm" 
@@ -193,17 +236,18 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Switch
-              checked={seller.status === 'active'}
+              checked={seller.active || false}
               onCheckedChange={toggleActive}
-              disabled={isTesting}
+              disabled={isTesting || updateSeller.isPending}
             />
             <Label className="text-sm">Ativo</Label>
           </div>
           
           <div className="flex items-center space-x-2">
             <Switch
-              checked={seller.auto_first_message}
+              checked={seller.auto_first_message || false}
               onCheckedChange={toggleAutoMessage}
+              disabled={updateSeller.isPending}
             />
             <Label className="text-sm">Msg. Automática</Label>
           </div>
@@ -228,7 +272,7 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
                   <div className="flex items-center space-x-2 mt-1">
                     <Input
                       id="webhook"
-                      value={seller.webhook_url}
+                      value={seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`}
                       readOnly
                       className="flex-1"
                     />
@@ -290,9 +334,9 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
                   </Button>
                 </div>
 
-                {seller.last_test && (
+                {seller.whapi_last_test && (
                   <p className="text-xs text-muted-foreground">
-                    Último teste: {new Date(seller.last_test).toLocaleString()}
+                    Último teste: {new Date(seller.whapi_last_test).toLocaleString()}
                   </p>
                 )}
               </div>
