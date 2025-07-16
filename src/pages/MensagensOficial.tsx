@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
 import { useConversations, Conversation } from "@/hooks/useConversations";
 import { useConversationMessages } from "@/hooks/useConversationMessages";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   AlertDialog,
@@ -29,6 +30,7 @@ export default function MensagensOficial() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [timers, setTimers] = useState<Record<string, number>>({});
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Hooks para dados reais
   const { data: conversations = [], isLoading: conversationsLoading } = useConversations(searchTerm);
@@ -90,13 +92,22 @@ export default function MensagensOficial() {
   };
 
   const handleFallbackMode = async (conversationId: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar logado para assumir uma conversa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('conversations')
         .update({ 
           fallback_mode: true, 
           status: 'fallback_active',
-          fallback_taken_by: 'user-id' // TODO: usar ID do usuário atual
+          fallback_taken_by: user.id
         })
         .eq('id', conversationId);
 
