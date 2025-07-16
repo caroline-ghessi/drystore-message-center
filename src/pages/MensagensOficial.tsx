@@ -170,7 +170,7 @@ export default function MensagensOficial() {
         .from('messages')
         .insert({
           conversation_id: selectedConversation,
-          sender_type: 'operator',
+          sender_type: 'system',
           sender_name: user.email || 'Operador',
           content: message,
           message_type: 'text'
