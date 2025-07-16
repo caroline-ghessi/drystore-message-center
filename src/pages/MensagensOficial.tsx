@@ -106,7 +106,7 @@ export default function MensagensOficial() {
         .from('conversations')
         .update({ 
           fallback_mode: true, 
-          status: 'fallback_active',
+          status: 'sent_to_seller',
           fallback_taken_by: user.id
         })
         .eq('id', conversationId);
