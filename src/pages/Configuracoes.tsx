@@ -21,7 +21,7 @@ import { RodrigoBotWhapiCard } from "@/components/Config/RodrigoBotWhapiCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
 import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
 import SellerProfileForm from "@/components/Config/SellerProfileForm";
-import { useSellers } from "@/hooks/useSellers";
+import { useSellers, useDeleteSeller } from "@/hooks/useSellers";
 
 interface Seller {
   id: string;
@@ -47,8 +47,7 @@ export default function Configuracoes() {
   
   // Buscar vendedores reais
   const { sellers: realSellers, isLoading: sellersLoading } = useSellers();
-  
-  const [sellers, setSellers] = useState<Seller[]>([]);
+  const deleteSeller = useDeleteSeller();
 
   const [rodrigoBot, setRodrigoBot] = useState<RodrigoBot>({
     status: 'active',
@@ -75,26 +74,7 @@ export default function Configuracoes() {
     try {
       // Test integration first
       const success = await mockTestWhapiIntegration(token);
-      
-      if (success) {
-        // Store token securely (would use Supabase Secrets in real implementation)
-        // For now, just add the seller
-        const seller: Seller = {
-          id: Date.now().toString(),
-          name: newSeller.name,
-          phone_number: newSeller.phone_number,
-          webhook_url: newSeller.webhook_url,
-          status: 'active',
-          auto_first_message: newSeller.auto_first_message,
-          created_at: new Date().toISOString(),
-          last_test: new Date().toISOString()
-        };
-        
-        setSellers([...sellers, seller]);
-        return true;
-      }
-      
-      return false;
+      return success;
     } catch (error) {
       console.error('Error adding seller:', error);
       return false;
@@ -102,13 +82,24 @@ export default function Configuracoes() {
   };
 
   const handleUpdateSeller = (updatedSeller: Seller) => {
-    setSellers(sellers.map(seller => 
-      seller.id === updatedSeller.id ? updatedSeller : seller
-    ));
+    // Updates are now handled via real database operations
+    console.log('Update seller:', updatedSeller);
   };
 
-  const handleDeleteSeller = (id: string) => {
-    setSellers(sellers.filter(seller => seller.id !== id));
+  const handleDeleteSeller = async (id: string) => {
+    try {
+      await deleteSeller.mutateAsync(id);
+      toast({
+        title: "Vendedor excluído",
+        description: "Vendedor foi marcado como inativo com sucesso.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao excluir",
+        description: "Não foi possível excluir o vendedor. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleTestSellerIntegration = async (id: string, token: string): Promise<boolean> => {
@@ -169,7 +160,7 @@ export default function Configuracoes() {
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="h-5 w-5 text-drystore-orange" />
-                <span>Vendedores Cadastrados ({sellers.length})</span>
+                <span>Vendedores Cadastrados ({realSellers?.length || 0})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>

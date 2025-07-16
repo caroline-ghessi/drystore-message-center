@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { 
   User, 
   Settings, 
@@ -34,7 +35,7 @@ interface Seller {
 interface SellerCardProps {
   seller: Seller;
   onUpdate: (seller: Seller) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
   onTestIntegration: (id: string, token: string) => Promise<boolean>;
 }
 
@@ -43,6 +44,7 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
   const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const getStatusColor = (status: string) => {
@@ -137,6 +139,17 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
       ...seller,
       auto_first_message: !seller.auto_first_message
     });
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await onDelete(seller.id);
+    } catch (error) {
+      // Error handling is done in the parent component
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -283,13 +296,40 @@ export default function SellerCard({ seller, onUpdate, onDelete, onTestIntegrati
             </DialogContent>
           </Dialog>
 
-          <Button 
-            size="sm" 
-            variant="destructive" 
-            onClick={() => onDelete(seller.id)}
-          >
-            Excluir
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="destructive"
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Excluir"
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja excluir o vendedor <strong>{seller.name}</strong>? 
+                  Esta ação irá marcar o vendedor como inativo e ele não aparecerá mais na lista.
+                  O histórico de conversas e leads será mantido.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Confirmar exclusão
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>

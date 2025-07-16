@@ -42,6 +42,41 @@ export function useActiveSellers() {
   });
 }
 
+export function useDeleteSeller() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (sellerId: string) => {
+      // Soft delete - mark as inactive instead of deleting
+      const { error: sellerError } = await supabase
+        .from("sellers")
+        .update({ active: false })
+        .eq("id", sellerId);
+
+      if (sellerError) throw sellerError;
+
+      // Log the deletion
+      const { error: logError } = await supabase
+        .from("system_logs")
+        .insert({
+          type: "seller_deleted",
+          source: "admin_action",
+          message: `Vendedor marcado como inativo`,
+          details: {
+            seller_id: sellerId,
+          },
+        });
+
+      if (logError) throw logError;
+
+      return { sellerId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+    },
+  });
+}
+
 export function useTransferToSeller() {
   const queryClient = useQueryClient();
   
