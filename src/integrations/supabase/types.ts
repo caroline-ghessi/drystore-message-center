@@ -55,6 +55,7 @@ export type Database = {
           fallback_mode: boolean | null
           fallback_taken_by: string | null
           id: string
+          metadata: Json | null
           phone_number: string
           status: string | null
           updated_at: string | null
@@ -66,6 +67,7 @@ export type Database = {
           fallback_mode?: boolean | null
           fallback_taken_by?: string | null
           id?: string
+          metadata?: Json | null
           phone_number: string
           status?: string | null
           updated_at?: string | null
@@ -77,6 +79,7 @@ export type Database = {
           fallback_mode?: boolean | null
           fallback_taken_by?: string | null
           id?: string
+          metadata?: Json | null
           phone_number?: string
           status?: string | null
           updated_at?: string | null

@@ -51,7 +51,7 @@ serve(async (req) => {
     // Verifica se a conversa está em modo bot
     const { data: conversation } = await supabase
       .from('conversations')
-      .select('status, fallback_mode, phone_number')
+      .select('status, fallback_mode, phone_number, metadata')
       .eq('id', conversationId)
       .single();
 
@@ -217,11 +217,13 @@ async function processBufferedMessages(
       }
     });
 
-    // Atualiza conversa com conversation_id do Dify
+    // Atualiza conversa com conversation_id do Dify preservando metadata existente
+    const currentMetadata = existingConversation?.metadata || {};
     await supabase
       .from('conversations')
       .update({
         metadata: {
+          ...currentMetadata,
           dify_conversation_id: difyResponse.conversation_id,
           last_dify_message: difyResponse.message_id
         }
