@@ -19,6 +19,7 @@ import { DifyChatTest } from "@/components/Debug/DifyChatTest";
 import { DifyChatTestWithFiles } from "@/components/Debug/DifyChatTestWithFiles";
 import { AIAgentTest } from "@/components/Debug/AIAgentTest";
 import { MediaRetryTest } from "@/components/Debug/MediaRetryTest";
+import { MessageQueueMonitor } from "@/components/Debug/MessageQueueMonitor";
 import { useSystemLogs, useConnectionStatus } from "@/hooks/useDebugData";
 
 export default function Debug() {
@@ -99,13 +100,14 @@ export default function Debug() {
       {/* Content */}
       <div className="w-full">
         <Tabs defaultValue="whatsapp" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify Chat</TabsTrigger>
           <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
           <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
           <TabsTrigger value="connections">Status Conexões</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="queue">Fila Mensagens</TabsTrigger>
         </TabsList>
 
         <TabsContent value="whatsapp" className="space-y-4">
@@ -215,6 +217,10 @@ export default function Debug() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          
+          <TabsContent value="queue" className="space-y-4">
+            <MessageQueueMonitor />
           </TabsContent>
         </Tabs>
       </div>
