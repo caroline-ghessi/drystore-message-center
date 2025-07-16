@@ -15,7 +15,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 // Import new components
-import AddSellerWizard from "@/components/Config/AddSellerWizard";
 import SellerCard from "@/components/Config/SellerCard";
 import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
@@ -156,9 +155,8 @@ export default function Configuracoes() {
 
         {/* Content */}
         <Tabs defaultValue="sellers" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="sellers">Vendedores</TabsTrigger>
-          <TabsTrigger value="profile-details">Perfil Detalhado</TabsTrigger>
           <TabsTrigger value="rodrigo-bot">Rodrigo Bot</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="system">Sistema</TabsTrigger>
@@ -166,7 +164,22 @@ export default function Configuracoes() {
 
         {/* Sellers Tab */}
         <TabsContent value="sellers" className="space-y-6">
-          <AddSellerWizard onAdd={handleAddSeller} />
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5 text-drystore-orange" />
+                <span>Cadastro e Gerenciamento de Vendedores</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SellerProfileForm onSuccess={() => {
+                toast({
+                  title: "Sucesso!",
+                  description: "Vendedor cadastrado com sucesso",
+                });
+              }} />
+            </CardContent>
+          </Card>
           
           <Card className="shadow-card">
             <CardHeader>
@@ -194,20 +207,6 @@ export default function Configuracoes() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Profile Details Tab */}
-        <TabsContent value="profile-details" className="space-y-4">
-          <div className="flex items-center space-x-2 mb-4">
-            <Users className="h-5 w-5 text-drystore-orange" />
-            <h2 className="text-xl font-semibold">Cadastro Detalhado de Vendedor</h2>
-          </div>
-          <SellerProfileForm onSuccess={() => {
-            toast({
-              title: "Sucesso!",
-              description: "Vendedor cadastrado com sucesso",
-            });
-          }} />
         </TabsContent>
 
         {/* Rodrigo Bot Tab */}
