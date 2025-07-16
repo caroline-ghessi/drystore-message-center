@@ -70,9 +70,41 @@ export const useAuthState = (): AuthContextType => {
 
       if (profileData) {
         setProfile(profileData);
+      } else {
+        // Create profile if it doesn't exist
+        await createProfile(userId);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
+    }
+  };
+
+  const createProfile = async (userId: string) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+      
+      const { data: newProfile, error } = await supabase
+        .from('profiles')
+        .insert({
+          id: userId,
+          name: user?.user_metadata?.name || user?.email || 'Usuário',
+          email: user?.email || '',
+          role: 'operator'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating profile:', error);
+        return;
+      }
+
+      if (newProfile) {
+        setProfile(newProfile);
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
     }
   };
 
