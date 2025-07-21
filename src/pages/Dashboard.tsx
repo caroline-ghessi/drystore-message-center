@@ -10,6 +10,7 @@ import {
   DollarSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AutomationPanel } from "@/components/Dashboard/AutomationPanel";
 
 export default function Dashboard() {
   // Mock data - substituir por dados reais do Supabase
@@ -102,6 +103,9 @@ export default function Dashboard() {
             />
           ))}
         </div>
+
+        {/* Painel de Automação */}
+        <AutomationPanel />
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
