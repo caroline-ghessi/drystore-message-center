@@ -1,3 +1,4 @@
+
 import { MetricCard } from "@/components/ui/metric-card";
 import { 
   MessageSquare, 
@@ -11,72 +12,48 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AutomationPanel } from "@/components/Dashboard/AutomationPanel";
+import { useDashboardMetrics } from "@/hooks/useDashboardMetrics";
+import { useRecentActivity } from "@/hooks/useRecentActivity";
+import { useSellerPerformance } from "@/hooks/useSellerPerformance";
+import { useConversationStatus } from "@/hooks/useConversationStatus";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  // Mock data - substituir por dados reais do Supabase
-  const metrics = [
+  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
+  const { data: recentActivity, isLoading: activityLoading } = useRecentActivity();
+  const { data: sellerPerformance, isLoading: sellersLoading } = useSellerPerformance();
+  const { data: conversationStatus, isLoading: statusLoading } = useConversationStatus();
+
+  // Preparar dados das métricas principais
+  const metricsData = [
     {
       title: "Mensagens Hoje",
-      value: 127,
+      value: metrics?.messagesToday || 0,
       icon: MessageSquare,
       trend: { value: 12, type: 'increase' as const },
       color: 'orange' as const
     },
     {
       title: "Conversas Ativas",
-      value: 34,
+      value: metrics?.activeConversations || 0,
       icon: Users,
       trend: { value: 8, type: 'increase' as const },
       color: 'blue' as const
     },
     {
       title: "Leads Gerados",
-      value: 18,
+      value: metrics?.leadsGenerated || 0,
       icon: Target,
       trend: { value: 5, type: 'decrease' as const },
       color: 'green' as const
     },
     {
       title: "Taxa de Conversão",
-      value: "23%",
+      value: metrics?.conversionRate || "0%",
       icon: TrendingUp,
       trend: { value: 3, type: 'increase' as const },
       color: 'green' as const
     }
-  ];
-
-  const recentActivity = [
-    {
-      id: 1,
-      customer: "João Silva",
-      phone: "(11) 99999-9999",
-      action: "Enviado ao vendedor Carlos",
-      time: "2 min atrás",
-      status: "sent_to_seller"
-    },
-    {
-      id: 2,
-      customer: "Maria Santos",
-      phone: "(11) 88888-8888",
-      action: "Conversa finalizada",
-      time: "5 min atrás",
-      status: "finished"
-    },
-    {
-      id: 3,
-      customer: "Pedro Costa",
-      phone: "(11) 77777-7777",
-      action: "Aguardando avaliação",
-      time: "8 min atrás",
-      status: "waiting_evaluation"
-    }
-  ];
-
-  const sellerPerformance = [
-    { name: "Carlos Silva", leads: 12, conversions: 8, rate: "67%" },
-    { name: "Ana Santos", leads: 15, conversions: 9, rate: "60%" },
-    { name: "João Costa", leads: 8, conversions: 4, rate: "50%" },
-    { name: "Maria Oliveira", leads: 10, conversions: 6, rate: "60%" }
   ];
 
   return (
@@ -92,16 +69,27 @@ export default function Dashboard() {
 
         {/* Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {metrics.map((metric, index) => (
-            <MetricCard
-              key={index}
-              title={metric.title}
-              value={metric.value}
-              icon={metric.icon}
-              trend={metric.trend}
-              color={metric.color}
-            />
-          ))}
+          {metricsLoading ? (
+            // Loading skeletons
+            Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className="shadow-card">
+                <CardContent className="p-6">
+                  <Skeleton className="h-20 w-full" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            metricsData.map((metric, index) => (
+              <MetricCard
+                key={index}
+                title={metric.title}
+                value={metric.value}
+                icon={metric.icon}
+                trend={metric.trend}
+                color={metric.color}
+              />
+            ))
+          )}
         </div>
 
         {/* Painel de Automação */}
@@ -119,37 +107,51 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">{activity.customer}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {activity.phone}
-                        </span>
+                {activityLoading ? (
+                  // Loading skeletons
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full" />
+                  ))
+                ) : recentActivity && recentActivity.length > 0 ? (
+                  recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium">{activity.customer}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {activity.phone}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {activity.action}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {activity.action}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </p>
-                      <div className="mt-1">
-                        {activity.status === 'sent_to_seller' && (
-                          <div className="h-2 w-2 bg-drystore-info rounded-full"></div>
-                        )}
-                        {activity.status === 'finished' && (
-                          <div className="h-2 w-2 bg-drystore-success rounded-full"></div>
-                        )}
-                        {activity.status === 'waiting_evaluation' && (
-                          <div className="h-2 w-2 bg-drystore-warning rounded-full"></div>
-                        )}
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">
+                          {activity.time}
+                        </p>
+                        <div className="mt-1">
+                          {activity.status === 'sent_to_seller' && (
+                            <div className="h-2 w-2 bg-drystore-info rounded-full"></div>
+                          )}
+                          {activity.status === 'finished' && (
+                            <div className="h-2 w-2 bg-drystore-success rounded-full"></div>
+                          )}
+                          {activity.status === 'waiting_evaluation' && (
+                            <div className="h-2 w-2 bg-drystore-warning rounded-full"></div>
+                          )}
+                          {activity.status === 'bot_attending' && (
+                            <div className="h-2 w-2 bg-drystore-orange rounded-full"></div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">
+                    Nenhuma atividade recente
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -164,24 +166,35 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {sellerPerformance.map((seller, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{seller.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {seller.leads} leads • {seller.conversions} conversões
-                      </p>
+                {sellersLoading ? (
+                  // Loading skeletons
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full" />
+                  ))
+                ) : sellerPerformance && sellerPerformance.length > 0 ? (
+                  sellerPerformance.map((seller, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div>
+                        <p className="font-medium">{seller.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {seller.leads} leads • {seller.conversions} conversões
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-drystore-success">
+                          {seller.rate}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          taxa de conversão
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-drystore-success">
-                        {seller.rate}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        taxa de conversão
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-muted-foreground py-4">
+                    Nenhum dado de performance disponível
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -197,22 +210,39 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="text-center p-4 bg-drystore-orange/10 rounded-lg">
-                <div className="text-2xl font-bold text-drystore-orange">23</div>
-                <div className="text-sm text-muted-foreground">Atendimento Bot</div>
-              </div>
-              <div className="text-center p-4 bg-drystore-warning/10 rounded-lg">
-                <div className="text-2xl font-bold text-drystore-warning">8</div>
-                <div className="text-sm text-muted-foreground">Aguardando Avaliação</div>
-              </div>
-              <div className="text-center p-4 bg-drystore-info/10 rounded-lg">
-                <div className="text-2xl font-bold text-drystore-info">15</div>
-                <div className="text-sm text-muted-foreground">Com Vendedores</div>
-              </div>
-              <div className="text-center p-4 bg-drystore-success/10 rounded-lg">
-                <div className="text-2xl font-bold text-drystore-success">42</div>
-                <div className="text-sm text-muted-foreground">Finalizadas</div>
-              </div>
+              {statusLoading ? (
+                // Loading skeletons
+                Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className="h-20 w-full" />
+                ))
+              ) : (
+                <>
+                  <div className="text-center p-4 bg-drystore-orange/10 rounded-lg">
+                    <div className="text-2xl font-bold text-drystore-orange">
+                      {conversationStatus?.botAttending || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Atendimento Bot</div>
+                  </div>
+                  <div className="text-center p-4 bg-drystore-warning/10 rounded-lg">
+                    <div className="text-2xl font-bold text-drystore-warning">
+                      {conversationStatus?.waitingEvaluation || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Aguardando Avaliação</div>
+                  </div>
+                  <div className="text-center p-4 bg-drystore-info/10 rounded-lg">
+                    <div className="text-2xl font-bold text-drystore-info">
+                      {conversationStatus?.withSellers || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Com Vendedores</div>
+                  </div>
+                  <div className="text-center p-4 bg-drystore-success/10 rounded-lg">
+                    <div className="text-2xl font-bold text-drystore-success">
+                      {conversationStatus?.finished || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Finalizadas</div>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
