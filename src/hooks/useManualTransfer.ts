@@ -136,29 +136,104 @@ export function useManualTransfer() {
 
       if (updateError) throw updateError;
 
-      // 4. Enviar resumo via Rodrigo Bot
-      const { error: sendError } = await supabase.functions.invoke('whapi-send', {
+      // 4. Buscar configuração do Rodrigo Bot
+      const { data: rodrigoConfig, error: rodrigoConfigError } = await supabase
+        .from('whapi_configurations')
+        .select('*')
+        .eq('type', 'rodrigo_bot')
+        .eq('active', true)
+        .single();
+
+      if (rodrigoConfigError || !rodrigoConfig) {
+        throw new Error('Rodrigo Bot não está configurado. Configure-o na seção WHAPI.');
+      }
+
+      // 5. Buscar token do Rodrigo Bot dos secrets
+      const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-secret', {
+        body: { secretName: rodrigoConfig.token_secret_name }
+      });
+
+      if (tokenError || !tokenData?.value) {
+        throw new Error(`Token do Rodrigo Bot não encontrado. Secret: ${rodrigoConfig.token_secret_name}`);
+      }
+
+      // 6. Formatar mensagem para o vendedor
+      const messageContent = `🎯 *NOVO LEAD RECEBIDO*
+
+*Cliente:* ${conversation.customer_name || 'Cliente'}
+*Telefone:* ${conversation.phone_number}
+*ID da Conversa:* ${conversationId}
+
+*📋 Resumo do Atendimento:*
+${summary}
+
+${notes ? `*📝 Observações Adicionais:*\n${notes}\n\n` : ''}---
+_Lead distribuído automaticamente pelo sistema_
+_Responda o cliente o quanto antes_`;
+
+      // 7. Enviar via Rodrigo Bot com dados corretos
+      const { data: sendResult, error: sendError } = await supabase.functions.invoke('whapi-send', {
         body: {
-          action: 'send_lead_to_seller',
-          lead_id: lead.id,
-          seller_phone: seller.phone_number,
-          customer_name: conversation.customer_name || 'Cliente',
-          summary: summary,
-          notes: notes
+          token: tokenData.value,
+          to: seller.phone_number,
+          content: messageContent,
+          type: 'text'
         }
       });
 
       if (sendError) {
         console.error('Erro ao enviar via Rodrigo Bot:', sendError);
-        toast.error('Lead criado, mas falha no envio via WhatsApp');
-      } else {
-        toast.success(`Lead enviado para ${seller.name} via Rodrigo Bot`);
+        throw new Error(`Falha no envio via WhatsApp: ${sendError.message}`);
       }
 
+      if (!sendResult?.success) {
+        throw new Error(`Falha no envio: ${sendResult?.error || 'Erro desconhecido'}`);
+      }
+
+      // 8. Atualizar lead com dados do envio
+      await supabase
+        .from('leads')
+        .update({
+          sent_at: new Date().toISOString(),
+          status: 'sent_to_seller'
+        })
+        .eq('id', lead.id);
+
+      // 9. Log de sucesso
+      await supabase.from('system_logs').insert({
+        type: 'success',
+        source: 'manual-transfer',
+        message: `Lead transferido manualmente para ${seller.name}`,
+        details: {
+          lead_id: lead.id,
+          seller_id: sellerId,
+          seller_name: seller.name,
+          customer_name: conversation.customer_name,
+          customer_phone: conversation.phone_number,
+          conversation_id: conversationId,
+          whapi_message_id: sendResult.message_id
+        }
+      });
+
+      toast.success(`Lead enviado com sucesso para ${seller.name} via Rodrigo Bot!`);
       return lead;
+
     } catch (error) {
       console.error('Erro na transferência manual:', error);
-      toast.error('Erro ao transferir lead para vendedor');
+      
+      // Log do erro
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'manual-transfer',
+        message: 'Erro na transferência manual de lead',
+        details: { 
+          error: error.message, 
+          conversation_id: conversationId,
+          seller_id: sellerId
+        }
+      });
+
+      toast.error(`Erro na transferência: ${error.message}`);
       throw error;
     } finally {
       setIsLoading(false);
