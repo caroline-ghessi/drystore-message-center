@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
-import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2 } from "lucide-react";
+import { ManualTransferDialog } from "@/components/WhatsApp/ManualTransferDialog";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
@@ -29,6 +30,7 @@ export default function MensagensOficial() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [timers, setTimers] = useState<Record<string, number>>({});
+  const [isManualTransferDialogOpen, setIsManualTransferDialogOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -350,36 +352,47 @@ export default function MensagensOficial() {
                               onTransfer={handleTransferToSeller}
                             />
                           )}
-                          
-                          {/* Botão Fallback - apenas se não estiver em fallback */}
-                          {!conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="flex items-center space-x-1">
-                                  <User className="h-3 w-3" />
-                                  <span>Assumir Conversa</span>
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle className="flex items-center space-x-2">
-                                    <AlertTriangle className="h-5 w-5 text-drystore-warning" />
-                                    <span>Ativar Modo Fallback</span>
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
-                                    Esta ação não pode ser desfeita. Deseja continuar?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
-                                    Assumir Conversa
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
+                           
+                           {/* Botão Transferir Manual */}
+                           <Button
+                             variant="default"
+                             size="sm"
+                             onClick={() => setIsManualTransferDialogOpen(true)}
+                             className="flex items-center space-x-1"
+                           >
+                             <ArrowRight className="h-3 w-3" />
+                             <span>Transferir Manual</span>
+                           </Button>
+                           
+                           {/* Botão Fallback - apenas se não estiver em fallback */}
+                           {!conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
+                             <AlertDialog>
+                               <AlertDialogTrigger asChild>
+                                 <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                                   <User className="h-3 w-3" />
+                                   <span>Assumir Conversa</span>
+                                 </Button>
+                               </AlertDialogTrigger>
+                               <AlertDialogContent>
+                                 <AlertDialogHeader>
+                                   <AlertDialogTitle className="flex items-center space-x-2">
+                                     <AlertTriangle className="h-5 w-5 text-drystore-warning" />
+                                     <span>Ativar Modo Fallback</span>
+                                   </AlertDialogTitle>
+                                   <AlertDialogDescription>
+                                     Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
+                                     Esta ação não pode ser desfeita. Deseja continuar?
+                                   </AlertDialogDescription>
+                                 </AlertDialogHeader>
+                                 <AlertDialogFooter>
+                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                   <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
+                                     Assumir Conversa
+                                   </AlertDialogAction>
+                                 </AlertDialogFooter>
+                               </AlertDialogContent>
+                             </AlertDialog>
+                           )}
                         </div>
                       )}
                     </div>
@@ -421,6 +434,15 @@ export default function MensagensOficial() {
           </Card>
         </div>
       </div>
+
+      {/* Dialogs */}
+      <ManualTransferDialog
+        open={isManualTransferDialogOpen}
+        onOpenChange={setIsManualTransferDialogOpen}
+        conversationId={selectedConversation}
+        customerName={conversations.find(c => c.id === selectedConversation)?.customer_name}
+        phoneNumber={conversations.find(c => c.id === selectedConversation)?.phone_number}
+      />
     </div>
   );
 }
