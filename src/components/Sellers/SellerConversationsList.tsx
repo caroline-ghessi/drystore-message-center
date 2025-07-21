@@ -55,12 +55,12 @@ export function SellerConversationsList({
 
   const handleSellerChange = (sellerId: string) => {
     setSelectedSeller(sellerId);
-    onSellerFilter(sellerId);
+    onSellerFilter(sellerId === "all" ? "" : sellerId);
   };
 
   const handleStatusChange = (status: string) => {
     setSelectedStatus(status);
-    onStatusFilter(status);
+    onStatusFilter(status === "all" ? "" : status);
   };
 
   return (
@@ -90,7 +90,7 @@ export function SellerConversationsList({
                 <SelectValue placeholder="Todos os vendedores" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os vendedores</SelectItem>
+                <SelectItem value="all">Todos os vendedores</SelectItem>
                 {sellers.map((seller) => (
                   <SelectItem key={seller.id} value={seller.id}>
                     {seller.name}
@@ -104,7 +104,7 @@ export function SellerConversationsList({
                 <SelectValue placeholder="Todos os status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os status</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="sent_to_seller">Com Vendedor</SelectItem>
                 <SelectItem value="finished">Finalizada</SelectItem>
               </SelectContent>
