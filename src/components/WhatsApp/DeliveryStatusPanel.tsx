@@ -34,7 +34,8 @@ export function DeliveryStatusPanel() {
         total: data.length,
         delivered: data.filter(m => ['delivered', 'read'].includes(m.status)).length,
         pending: data.filter(m => ['sent', 'pending'].includes(m.status)).length,
-        failed: data.filter(m => m.status === 'failed').length
+        failed: data.filter(m => m.status === 'failed').length,
+        deliveryRate: 0
       };
 
       stats.deliveryRate = stats.total > 0 ? Math.round((stats.delivered / stats.total) * 100) : 0;

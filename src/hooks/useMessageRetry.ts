@@ -108,10 +108,10 @@ export function useMessageRetry() {
         seller_phone: log.phone_to,
         customer_phone: log.phone_from,
         message_id: log.whapi_message_id,
-        status: log.status === 'sent' ? 'pending' : log.status,
+        status: (log.status === 'sent' ? 'pending' : log.status) as 'pending' | 'delivered' | 'failed',
         created_at: log.created_at,
         retry_count: 0 // TODO: implementar contador de retry
-      }));
+      })) as PendingMessage[];
 
     } catch (error) {
       console.error('Erro ao buscar mensagens pendentes:', error);

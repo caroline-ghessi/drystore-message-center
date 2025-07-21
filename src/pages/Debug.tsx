@@ -1,8 +1,8 @@
-import { WhatsAppTester } from "@/components/Debug/WhatsAppTester";
+import WhatsAppTester from "@/components/Debug/WhatsAppTester";
 import { DifyChatTest } from "@/components/Debug/DifyChatTest";
 import { DifyChatTestWithFiles } from "@/components/Debug/DifyChatTestWithFiles";
 import { AIAgentTest } from "@/components/Debug/AIAgentTest";
-import { LogViewer } from "@/components/Debug/LogViewer";
+import LogViewer from "@/components/Debug/LogViewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { MediaRetryTest } from "@/components/Debug/MediaRetryTest";
