@@ -1,249 +1,165 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
-import { Search, Phone, Clock, MessageSquare, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useActiveSellers } from "@/hooks/useSellers";
-import { useConversationMessages } from "@/hooks/useConversationMessages";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-
-interface SellerConversation {
-  id: string;
-  phone_number: string;
-  customer_name: string;
-  status: 'attending' | 'finished' | 'sold' | 'lost';
-  last_message: string;
-  last_message_time: string;
-  unread_count: number;
-}
-
-interface Seller {
-  id: string;
-  name: string;
-  active: boolean;
-  conversations: SellerConversation[];
-}
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Circle,
+  Copy,
+  Plus,
+  Search,
+  Trash2,
+  UserPlus,
+  Users,
+  Whatsapp,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useSellers, useDeleteSeller, useUpdateSeller } from "@/hooks/useSellers";
+import { DataTable } from "@/components/ui/data-table";
+import { columns } from "@/components/Sellers/columns";
+import { SellerForm } from "@/components/Sellers/seller-form";
+import { AlertDialogDemo } from "@/components/ui/alert-dialog";
+import { useConversations } from "@/hooks/useConversations";
+import { Link } from "react-router-dom";
+import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 
 export default function MensagensVendedores() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('');
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const { sellers, isLoading, error } = useSellers();
+  const { mutate: deleteSeller, isLoading: isDeleting } = useDeleteSeller();
+  const { mutate: updateSeller, isLoading: isUpdating } = useUpdateSeller();
+  const { data: conversations } = useConversations(searchTerm);
 
-  // Buscar apenas vendedores ativos e não excluídos
-  const { data: realSellers, isLoading: sellersLoading } = useActiveSellers();
-  
-  // Buscar conversas do vendedor ativo
-  const { data: sellerConversations, isLoading: conversationsLoading } = useQuery({
-    queryKey: ["seller-conversations", activeTab],
-    queryFn: async () => {
-      if (!activeTab) return [];
-      
-      const { data, error } = await supabase
-        .from('leads')
-        .select(`
-          id,
-          customer_name,
-          phone_number,
-          status,
-          updated_at,
-          conversation_id,
-          conversations!inner(
-            id,
-            status
-          )
-        `)
-        .eq('seller_id', activeTab)
-        .in('status', ['attending', 'sent_to_seller'])
-        .order('updated_at', { ascending: false });
-        
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!activeTab,
-  });
-
-  // Buscar mensagens da conversa selecionada
-  const { data: messages, isLoading: messagesLoading } = useConversationMessages(selectedConversation || '');
-
-  // Configurar primeiro vendedor ativo quando carregar
-  if (!activeTab && realSellers?.length > 0) {
-    setActiveTab(realSellers[0].id);
-  }
-
-  const filteredConversations = sellerConversations?.filter(conv =>
-    conv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conv.phone_number.includes(searchTerm)
-  ) || [];
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} min atrás`;
-    } else if (diffInMinutes < 1440) {
-      return `${Math.floor(diffInMinutes / 60)} h atrás`;
-    } else {
-      return date.toLocaleDateString('pt-BR');
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Erro ao carregar vendedores",
+        description: error.message,
+        variant: "destructive",
+      });
     }
+  }, [error, toast]);
+
+  const handleDelete = (sellerId: string) => {
+    deleteSeller(sellerId, {
+      onSuccess: () => {
+        toast({
+          title: "Vendedor excluído",
+          description: "O vendedor foi removido com sucesso.",
+        });
+      },
+      onError: (error: any) => {
+        toast({
+          title: "Erro ao excluir vendedor",
+          description: error.message,
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  const handleActiveToggle = async (sellerId: string, active: boolean) => {
+    updateSeller({ id: sellerId, active: active });
   };
 
   return (
-    <div className="p-6 h-screen flex flex-col">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Acompanhar Vendedores</h1>
-        <p className="text-muted-foreground mt-1">
-          Monitore as conversas dos vendedores com os leads
-        </p>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Mensagens dos Vendedores</h1>
+        <Badge variant="secondary">
+          {sellers?.length || 0} vendedores ativos
+        </Badge>
       </div>
 
-      {/* Content */}
-      <div className="flex-1">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sellersLoading ? (
-              <div className="col-span-full text-center">Carregando vendedores...</div>
-            ) : (
-              realSellers?.map(seller => (
-                <TabsTrigger key={seller.id} value={seller.id} className="flex items-center space-x-2">
-                  <Users className="h-4 w-4" />
-                  <span>{seller.name}</span>
-                  {seller.active && <div className="h-2 w-2 bg-drystore-success rounded-full" />}
-                </TabsTrigger>
-              ))
-            )}
-          </TabsList>
+      {/* Painel de Status de Entrega */}
+      <DeliveryStatusPanel />
 
-          {realSellers?.map(seller => (
-            <TabsContent key={seller.id} value={seller.id} className="mt-6 h-full">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-                {/* Conversations List */}
-                <Card className="shadow-card">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <MessageSquare className="h-5 w-5 text-drystore-orange" />
-                        <span>Conversas</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className={cn(
-                          "h-2 w-2 rounded-full",
-                          seller.active ? "bg-drystore-success" : "bg-drystore-error"
-                        )} />
-                        <span className="text-sm text-muted-foreground">
-                          {seller.active ? 'Online' : 'Offline'}
-                        </span>
-                      </div>
-                    </CardTitle>
-                    <div className="relative">
-                      <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar conversas..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9"
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {conversationsLoading ? (
-                        <div className="p-4 text-center text-muted-foreground">
-                          Carregando conversas...
-                        </div>
-                      ) : filteredConversations.length === 0 ? (
-                        <div className="p-4 text-center text-muted-foreground">
-                          Nenhuma conversa encontrada
-                        </div>
-                      ) : (
-                        filteredConversations.map((conversation) => (
-                          <div
-                            key={conversation.id}
-                            onClick={() => setSelectedConversation(conversation.conversation_id)}
-                            className={cn(
-                              "p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                              selectedConversation === conversation.conversation_id && "bg-muted"
-                            )}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center space-x-2">
-                                  <h3 className="font-medium truncate">{conversation.customer_name}</h3>
-                                </div>
-                                <div className="flex items-center space-x-1 text-sm text-muted-foreground mt-1">
-                                  <Phone className="h-3 w-3" />
-                                  <span>{conversation.phone_number}</span>
-                                </div>
-                                <div className="flex items-center justify-between mt-2">
-                                  <StatusBadge status={conversation.status as any} />
-                                  <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    <span>{formatTime(conversation.updated_at)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Message Panel */}
-                <div className="lg:col-span-2">
-                  <Card className="shadow-card h-full">
-                    <CardHeader className="pb-3">
-                      <CardTitle>
-                        {selectedConversation ? (
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span>{filteredConversations.find(c => c.conversation_id === selectedConversation)?.customer_name}</span>
-                              <div className="text-sm text-muted-foreground font-normal">
-                                {filteredConversations.find(c => c.conversation_id === selectedConversation)?.phone_number}
-                              </div>
-                            </div>
-                            <StatusBadge 
-                              status={filteredConversations.find(c => c.conversation_id === selectedConversation)?.status as any || 'attending'} 
-                            />
-                          </div>
-                        ) : (
-                          'Selecione uma conversa'
-                        )}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0 h-[calc(100vh-450px)]">
-                      {selectedConversation ? (
-                        <MessagePanel
-                          conversation_id={selectedConversation}
-                          messages={messages || []}
-                          canSendMessage={false}
-                          className="h-full"
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="all">Todos</TabsTrigger>
+          <TabsTrigger value="active">Ativos</TabsTrigger>
+        </TabsList>
+        <TabsContent value="all" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Vendedores</CardTitle>
+              <CardDescription>
+                Gerencie seus vendedores e suas configurações.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center mb-4">
+                <Input
+                  type="search"
+                  placeholder="Buscar vendedor..."
+                  className="max-w-sm"
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <Button onClick={() => setOpen(true)}>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Adicionar Vendedor
+                </Button>
+              </div>
+              <DataTable columns={columns} data={sellers} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="active" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendedores Ativos</CardTitle>
+              <CardDescription>
+                Veja os vendedores que estão ativos no sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {sellers?.map((seller) => (
+                  <Card key={seller.id}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        {seller.name}
+                        <AlertDialogDemo
+                          onConfirm={() => handleDelete(seller.id)}
+                          disabled={isDeleting}
                         />
-                      ) : (
-                        <div className="h-full flex items-center justify-center">
-                          <div className="text-center">
-                            <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground">
-                              Selecione uma conversa para visualizar as mensagens
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                      </CardTitle>
+                      <CardDescription>{seller.phone_number}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Label>Ativo:</Label>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            handleActiveToggle(seller.id, !seller.active)
+                          }
+                          disabled={isUpdating}
+                        >
+                          {seller.active ? "Desativar" : "Ativar"}
+                        </Button>
+                      </div>
+                      <p>Leads Atendidos: 12</p>
+                      <p>Leads Qualificados: 8</p>
                     </CardContent>
                   </Card>
-                </div>
+                ))}
               </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <SellerForm open={open} setOpen={setOpen} />
     </div>
   );
 }
