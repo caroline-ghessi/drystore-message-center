@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
@@ -30,6 +31,11 @@ serve(async (req) => {
 
     console.log(`Claude Agent called for: ${agentKey}`);
 
+    if (!agentKey) {
+      console.error('AgentKey is required but was not provided');
+      throw new Error('AgentKey is required');
+    }
+
     // Buscar configuração do agente
     const { data: settings, error: settingsError } = await supabaseClient
       .from('settings')
@@ -37,8 +43,62 @@ serve(async (req) => {
       .eq('key', agentKey)
       .single();
 
-    if (settingsError) {
-      throw new Error(`Agent configuration not found: ${agentKey}`);
+    if (settingsError || !settings) {
+      console.error(`Agent configuration not found for key: ${agentKey}`, settingsError);
+      
+      // Se não encontrar configuração específica, usar configuração padrão para resumos
+      if (agentKey === 'ai_agent_summary_generator_prompt') {
+        console.log('Using default summary generator configuration');
+        const defaultConfig = {
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 1000,
+          temperature: 0.3,
+          system_prompt: 'Você é um assistente especializado em gerar resumos profissionais de conversas de atendimento ao cliente. Analise a conversa e crie um resumo claro, objetivo e útil para o vendedor dar continuidade ao atendimento.'
+        };
+        
+        // Preparar mensagens para Claude
+        const claudeMessages = [
+          {
+            role: 'user',
+            content: defaultConfig.system_prompt + '\n\nContext: ' + JSON.stringify(context) + '\n\nUser query: ' + messages[messages.length - 1].content
+          }
+        ];
+
+        // Chamar API da Anthropic
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': Deno.env.get('ANTHROPIC_API_KEY') ?? '',
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: defaultConfig.model,
+            max_tokens: defaultConfig.max_tokens,
+            temperature: defaultConfig.temperature,
+            messages: claudeMessages,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error('Anthropic API error:', error);
+          throw new Error(`Anthropic API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const result = data.content[0].text;
+
+        return new Response(JSON.stringify({ 
+          result,
+          usage: data.usage,
+          agentKey 
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        throw new Error(`Agent configuration not found: ${agentKey}`);
+      }
     }
 
     const agentConfig = settings.value as any;
@@ -85,7 +145,7 @@ serve(async (req) => {
         message: `Agent ${agentKey} executed successfully`,
         details: {
           agentKey,
-          model: agentConfig.model,
+          model: agentConfig?.model || 'claude-3-5-sonnet-20241022',
           tokensUsed: data.usage?.output_tokens || 0,
           context
         }

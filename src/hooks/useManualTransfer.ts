@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -25,21 +26,53 @@ export function useManualTransfer() {
 
       if (messagesError) throw messagesError;
 
-      // Chamar edge function para gerar resumo
+      // Buscar dados da conversa
+      const { data: conversation, error: conversationError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .single();
+
+      if (conversationError) throw conversationError;
+
+      // Formatar mensagens para o contexto
+      const formattedMessages = messages.map(msg => 
+        `${msg.sender_type === 'customer' ? 'Cliente' : 'Bot'}: ${msg.content}`
+      ).join('\n');
+
+      // Chamar edge function anthropic-agent com formato correto
       const { data, error } = await supabase.functions.invoke('anthropic-agent', {
         body: {
-          action: 'generate_summary',
-          conversation_id: conversationId,
-          messages: messages
+          agentKey: 'ai_agent_summary_generator_prompt',
+          messages: [
+            {
+              role: 'user',
+              content: `Gere um resumo profissional da seguinte conversa de WhatsApp para transferir ao vendedor:\n\nCliente: ${conversation.customer_name || 'Cliente'}\nTelefone: ${conversation.phone_number}\n\nConversa:\n${formattedMessages}\n\nO resumo deve incluir: necessidades do cliente, produtos de interesse, urgência, e informações relevantes para o vendedor dar continuidade ao atendimento.`
+            }
+          ],
+          context: {
+            conversation_id: conversationId,
+            customer_name: conversation.customer_name,
+            phone_number: conversation.phone_number,
+            total_messages: messages.length
+          }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro na edge function anthropic-agent:', error);
+        throw error;
+      }
 
-      return data.summary || 'Resumo não pôde ser gerado.';
+      // A resposta da edge function tem o formato { result, usage, agentKey }
+      const summary = data?.result || 'Resumo não pôde ser gerado. Verifique a configuração do agente de IA.';
+      
+      console.log('Resumo gerado com sucesso:', summary);
+      return summary;
+
     } catch (error) {
       console.error('Erro ao gerar resumo:', error);
-      toast.error('Erro ao gerar resumo da conversa');
+      toast.error('Erro ao gerar resumo da conversa. Verifique as configurações da IA.');
       throw error;
     } finally {
       setIsGeneratingSummary(false);
