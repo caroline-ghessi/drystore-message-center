@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.whapi-configure]
 verify_jwt = false
+
+[functions.check-inactive-conversations]
+verify_jwt = false
+
+[functions.process-lead-evaluation]
+verify_jwt = false
+
+[functions.intelligent-transfer-orchestrator]
+verify_jwt = false
