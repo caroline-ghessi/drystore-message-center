@@ -73,8 +73,8 @@ serve(async (req) => {
       throw new Error('Token WHAPI não encontrado')
     }
 
-    // Verificar status no WHAPI
-    const statusUrl = `https://gate.whapi.cloud/messages/${logEntry.whapi_message_id}?token=${tokenData.value}`
+    // Verificar status no WHAPI - usando endpoint correto para status
+    const statusUrl = `https://gate.whapi.cloud/statuses/${logEntry.whapi_message_id}?token=${tokenData.value}`
     
     console.log('Consultando WHAPI:', statusUrl)
 

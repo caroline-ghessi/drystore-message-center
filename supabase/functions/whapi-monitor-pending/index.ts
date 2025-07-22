@@ -44,8 +44,8 @@ serve(async (req) => {
 
     for (const message of pendingMessages || []) {
       try {
-        // Verificar status na API WHAPI
-        const statusResponse = await fetch(`https://gate.whapi.cloud/messages/${message.whapi_message_id}`, {
+        // Verificar status na API WHAPI - usando endpoint correto para status
+        const statusResponse = await fetch(`https://gate.whapi.cloud/statuses/${message.whapi_message_id}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${message.token_used}`,
