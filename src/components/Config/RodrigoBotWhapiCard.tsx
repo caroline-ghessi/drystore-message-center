@@ -4,14 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Wifi, WifiOff, TestTube, Settings, Check, X, Loader2 } from 'lucide-react';
+import { Bot, Wifi, WifiOff, TestTube, Settings, Check, X, Loader2, Search, AlertTriangle } from 'lucide-react';
 import { useWhapiIntegration } from '@/hooks/useWhapiIntegration';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export function RodrigoBotWhapiCard() {
   const [token, setToken] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showConfig, setShowConfig] = useState(false);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
   const { toast } = useToast();
 
   const {
@@ -77,6 +79,60 @@ export function RodrigoBotWhapiCard() {
     });
   };
 
+  const handleDiagnoseRodrigoBot = async () => {
+    setIsDiagnosing(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('diagnose-rodrigo-bot', {
+        body: {}
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        const diagnosis = data.diagnosis;
+        const solution = data.solution;
+
+        toast({
+          title: diagnosis.problema_identificado ? "🚨 Problema Identificado e Corrigido!" : "✅ Diagnóstico Completo",
+          description: diagnosis.problema_identificado 
+            ? `Número corrigido de ${diagnosis.numero_no_banco} para ${diagnosis.numero_real_whapi}`
+            : "Configuração do Rodrigo Bot está correta",
+        });
+
+        console.log('🔍 Diagnóstico completo:', data);
+        
+        // Mostrar detalhes do diagnóstico
+        if (diagnosis.problema_identificado) {
+          toast({
+            title: "🔧 Correções Aplicadas",
+            description: `
+              ✅ Configuração atualizada
+              ✅ Função de direção corrigida  
+              ✅ Logs históricos corrigidos
+              
+              Próximo: Teste o envio para confirmar o fluxo
+            `,
+          });
+        }
+        
+      } else {
+        throw new Error(data?.error || 'Erro no diagnóstico');
+      }
+    } catch (error) {
+      console.error('Erro no diagnóstico:', error);
+      toast({
+        title: "Erro no Diagnóstico",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
   const getStatusBadge = () => {
     if (!rodrigoConfig) {
       return <Badge variant="secondary">Não configurado</Badge>;
@@ -136,6 +192,31 @@ export function RodrigoBotWhapiCard() {
             )}
           </div>
         )}
+
+        {/* Alerta de Diagnóstico */}
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-yellow-600" />
+            <span className="text-sm font-medium text-yellow-800">Diagnóstico Avançado</span>
+          </div>
+          <p className="text-xs text-yellow-700 mb-3">
+            Se mensagens estão chegando no lugar errado, execute o diagnóstico para identificar e corrigir automaticamente.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDiagnoseRodrigoBot}
+            disabled={isDiagnosing}
+            className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+          >
+            {isDiagnosing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4 mr-2" />
+            )}
+            {isDiagnosing ? 'Diagnosticando...' : 'Diagnosticar Fluxo'}
+          </Button>
+        </div>
 
         {/* Configuração */}
         {(!isConnected || showConfig) && (
