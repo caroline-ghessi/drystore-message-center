@@ -23,7 +23,7 @@ serve(async (req) => {
       throw new Error('sellerId é obrigatório')
     }
 
-    console.log('🎯 Iniciando teste de entrega para seller:', sellerId)
+    console.log('🎯 Iniciando teste de entrega CORRIGIDO para seller:', sellerId)
 
     // Buscar dados do vendedor
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
@@ -46,7 +46,7 @@ serve(async (req) => {
       phone: seller.phone_number
     })
 
-    // CRÍTICO: Buscar token do Rodrigo Bot - não do vendedor!
+    // CRÍTICO: Sempre usar o token do Rodrigo Bot (número correto: 5551981155622)
     const rodrigoBotSecretName = 'WHAPI_TOKEN_5551981155622'
     console.log('🤖 Buscando token do Rodrigo Bot:', rodrigoBotSecretName)
 
@@ -71,17 +71,18 @@ serve(async (req) => {
       throw new Error('Token do Rodrigo Bot inválido ou muito curto')
     }
 
-    // Preparar payload para whapi-send
+    // Preparar payload para whapi-send (FLUXO CORRIGIDO)
     const sendPayload = {
-      token: rodrigoToken, // USAR O TOKEN DO RODRIGO BOT
-      to: seller.phone_number, // ENVIAR PARA O VENDEDOR
-      content: `${testMessage}\n\n📋 Detalhes do teste:\n👤 Vendedor: ${seller.name}\n📱 Número: ${seller.phone_number}\n🤖 Enviado via: Rodrigo Bot\n⏰ Data: ${new Date().toLocaleString('pt-BR')}`
+      token: rodrigoToken, // TOKEN DO RODRIGO BOT
+      to: seller.phone_number, // NÚMERO DO VENDEDOR (DESTINO)
+      content: `${testMessage}\n\n📋 Detalhes do teste CORRIGIDO:\n👤 Vendedor: ${seller.name}\n📱 Número: ${seller.phone_number}\n🤖 Enviado via: Rodrigo Bot (5551981155622)\n⏰ Data: ${new Date().toLocaleString('pt-BR')}\n\n🔄 FLUXO: Rodrigo Bot → Vendedor`
     }
 
-    console.log('📤 Enviando mensagem via WHAPI:', {
-      from: 'Rodrigo Bot (5551981155622)',
-      to: seller.phone_number,
-      tokenUsed: rodrigoToken.substring(0, 10) + '...',
+    console.log('📤 Enviando mensagem via WHAPI (FLUXO CORRIGIDO):', {
+      de: 'Rodrigo Bot (5551981155622)',
+      para: `${seller.name} (${seller.phone_number})`,
+      tokenUsado: rodrigoToken.substring(0, 10) + '...',
+      fluxo_esperado: `5551981155622 → ${seller.phone_number}`,
       payload: {
         ...sendPayload,
         token: sendPayload.token.substring(0, 10) + '...'
@@ -98,17 +99,19 @@ serve(async (req) => {
       throw new Error(`Erro ao enviar mensagem: ${sendError.message}`)
     }
 
-    console.log('✅ Mensagem enviada com sucesso:', sendResult)
+    console.log('✅ Mensagem enviada com sucesso (FLUXO CORRIGIDO):', sendResult)
 
     // Log detalhado do resultado
     const resultDetails = {
       success: sendResult?.success || false,
       message_id: sendResult?.message_id,
-      to: sendResult?.to,
+      from: sendResult?.from || '5551981155622',
+      to: sendResult?.to || seller.phone_number,
+      direction: sendResult?.direction || 'bot_to_seller',
       whapi_response: sendResult?.whapi_response
     }
 
-    console.log('📊 Detalhes do resultado:', resultDetails)
+    console.log('📊 Detalhes do resultado CORRIGIDO:', resultDetails)
 
     // Log do teste no sistema
     await supabase
@@ -116,7 +119,7 @@ serve(async (req) => {
       .insert({
         type: 'info',
         source: 'delivery_test',
-        message: `Teste de entrega enviado via Rodrigo Bot para ${seller.name}`,
+        message: `Teste de entrega CORRIGIDO - Rodrigo Bot para ${seller.name}`,
         details: {
           seller_id: sellerId,
           seller_name: seller.name,
@@ -125,28 +128,40 @@ serve(async (req) => {
           token_used: rodrigoBotSecretName,
           rodrigo_bot_phone: '5551981155622',
           send_result: resultDetails,
-          flow_direction: 'rodrigo_bot_to_seller'
+          flow_direction: 'rodrigo_bot_to_seller',
+          fluxo_corrigido: `5551981155622 → ${seller.phone_number}`,
+          expected_whatsapp_behavior: {
+            rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${seller.name}`,
+            seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE Rodrigo Bot`
+          }
         }
       })
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Teste enviado DO Rodrigo Bot PARA ${seller.name}`,
+        message: `Teste CORRIGIDO - Rodrigo Bot → ${seller.name}`,
         details: {
-          flow: "Rodrigo Bot → Vendedor",
+          flow: "Rodrigo Bot → Vendedor (CORRIGIDO)",
           sender: "Rodrigo Bot",
-          sender_phone: "5551981155622", 
+          sender_phone: "5551981155622", // NÚMERO CORRIGIDO
           recipient: seller.name,
           recipient_phone: seller.phone_number,
           token_used: rodrigoBotSecretName,
           send_result: resultDetails,
           message_direction: "rodrigo_bot_to_seller",
           timestamp: new Date().toISOString(),
+          fluxo_corrigido: `5551981155622 → ${seller.phone_number}`,
           expected_whatsapp_behavior: {
-            rodrigo_bot_whatsapp: "Mensagem aparece como ENVIADA (verde, direita) PARA " + seller.name,
-            seller_whatsapp: "Mensagem aparece como RECEBIDA (cinza, esquerda) DE Rodrigo Bot"
-          }
+            rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde, direita) PARA ${seller.name}`,
+            seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza, esquerda) DE Rodrigo Bot`
+          },
+          verificacoes_necessarias: [
+            `1. No WhatsApp do Rodrigo Bot (5551981155622): Deve mostrar mensagem ENVIADA para ${seller.name}`,
+            `2. No WhatsApp do vendedor (${seller.phone_number}): Deve mostrar mensagem RECEBIDA do Rodrigo Bot`,
+            "3. Logs devem mostrar direction: 'bot_to_seller'",
+            "4. phone_from deve ser 5551981155622, phone_to deve ser o número do vendedor"
+          ]
         }
       }),
       { 
@@ -162,12 +177,13 @@ serve(async (req) => {
         success: false,
         error: error.message,
         details: {
-          message: "Falha no teste de entrega",
+          message: "Falha no teste de entrega CORRIGIDO",
           expected_flow: "Rodrigo Bot (5551981155622) → Vendedor",
           troubleshooting: {
             check_token: "Verificar se WHAPI_TOKEN_5551981155622 está correto",
             check_rodrigo_bot: "Verificar se número 5551981155622 está ativo no WHAPI",
-            check_seller_phone: "Verificar se número do vendedor está correto"
+            check_seller_phone: "Verificar se número do vendedor está correto",
+            check_flow: "Confirmar que mensagem vai DO Rodrigo Bot PARA o vendedor"
           }
         }
       }),

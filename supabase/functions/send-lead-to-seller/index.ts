@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -21,7 +22,7 @@ serve(async (req) => {
 
   try {
     const { leadId, sellerId, summary, customerName, customerPhone, productInterest }: SendLeadRequest = await req.json()
-    console.log('📨 Enviando lead para vendedor:', { leadId, sellerId, customerName })
+    console.log('📨 Enviando lead para vendedor (FLUXO CORRIGIDO):', { leadId, sellerId, customerName })
 
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -39,13 +40,13 @@ serve(async (req) => {
       throw new Error(`Vendedor não encontrado: ${sellerError?.message}`)
     }
 
-    // CRÍTICO: SEMPRE usar o token do Rodrigo Bot para comunicações internas
+    // CRÍTICO: SEMPRE usar o token do Rodrigo Bot (5551981155622) para comunicações internas
     const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
     if (!rodrigoBotToken) {
       throw new Error('Token do Rodrigo Bot não encontrado')
     }
 
-    console.log('🤖 Usando Rodrigo Bot para enviar lead ao vendedor:', seller.name)
+    console.log('🤖 Usando Rodrigo Bot (5551981155622) para enviar lead ao vendedor:', seller.name)
 
     // Preparar mensagem de resumo do lead
     const leadMessage = `🆕 **NOVO LEAD ATRIBUÍDO**
@@ -60,19 +61,22 @@ ${productInterest ? `🛍️ **Interesse:** ${productInterest}` : ''}
 ⏰ **Data:** ${new Date().toLocaleString('pt-BR')}
 
 ---
-💡 *Este lead foi atribuído automaticamente pelo sistema baseado no seu perfil e especialidades.*`
+💡 *Este lead foi atribuído automaticamente pelo sistema baseado no seu perfil e especialidades.*
 
-    // Enviar mensagem via Rodrigo Bot
+🔄 **FLUXO CORRIGIDO:** Rodrigo Bot (5551981155622) → ${seller.name}`
+
+    // Enviar mensagem via Rodrigo Bot (FLUXO CORRIGIDO)
     const sendPayload = {
-      token: rodrigoBotToken,
-      to: seller.phone_number,
+      token: rodrigoBotToken, // TOKEN DO RODRIGO BOT
+      to: seller.phone_number, // NÚMERO DO VENDEDOR (DESTINO)
       content: leadMessage
     }
 
-    console.log('📤 Enviando mensagem do Rodrigo Bot para vendedor:', {
-      from: 'Rodrigo Bot (5551981155622)',
-      to: `${seller.name} (${seller.phone_number})`,
-      leadId
+    console.log('📤 Enviando mensagem do Rodrigo Bot para vendedor (FLUXO CORRIGIDO):', {
+      de: 'Rodrigo Bot (5551981155622)',
+      para: `${seller.name} (${seller.phone_number})`,
+      leadId,
+      fluxo_esperado: `5551981155622 → ${seller.phone_number}`
     })
 
     const { data: sendResult, error: sendError } = await supabase.functions.invoke('whapi-send', {
@@ -83,7 +87,7 @@ ${productInterest ? `🛍️ **Interesse:** ${productInterest}` : ''}
       throw new Error(`Erro ao enviar mensagem: ${sendError.message}`)
     }
 
-    console.log('✅ Lead enviado com sucesso via Rodrigo Bot')
+    console.log('✅ Lead enviado com sucesso via Rodrigo Bot (FLUXO CORRIGIDO)')
 
     // Atualizar status do lead
     await supabase
@@ -125,10 +129,10 @@ Retorne apenas a mensagem, sem aspas ou formatação extra.`,
         if (aiResponse?.response) {
           console.log('💬 Primeira mensagem gerada, enviando para cliente...')
           
-          // IMPORTANTE: Aqui usaria o token do vendedor, não do Rodrigo Bot
+          // IMPORTANTE: Para primeira mensagem ao cliente, deveria usar token do vendedor
           // Mas por enquanto mantemos Rodrigo Bot até garantir que está funcionando
           const firstMessagePayload = {
-            token: rodrigoBotToken, // TODO: Trocar pelo token do vendedor quando sistema estiver estável
+            token: rodrigoBotToken, // TODO: Usar token do vendedor quando sistema estiver estável
             to: customerPhone,
             content: aiResponse.response
           }
@@ -153,7 +157,7 @@ Retorne apenas a mensagem, sem aspas ou formatação extra.`,
       .insert({
         type: 'info',
         source: 'lead_transfer',
-        message: `Lead ${leadId} enviado para vendedor ${seller.name} via Rodrigo Bot`,
+        message: `Lead ${leadId} enviado para vendedor ${seller.name} via Rodrigo Bot (FLUXO CORRIGIDO)`,
         details: {
           lead_id: leadId,
           seller_id: sellerId,
@@ -165,14 +169,19 @@ Retorne apenas a mensagem, sem aspas ou formatação extra.`,
           rodrigo_bot_used: true,
           rodrigo_bot_phone: '5551981155622',
           auto_first_message: seller.auto_first_message,
-          send_result: sendResult
+          send_result: sendResult,
+          fluxo_corrigido: `5551981155622 → ${seller.phone_number}`,
+          expected_whatsapp_behavior: {
+            rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA para ${seller.name}`,
+            seller_whatsapp: `Mensagem aparece como RECEBIDA do Rodrigo Bot`
+          }
         }
       })
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Lead enviado para ${seller.name} via Rodrigo Bot`,
+        message: `Lead enviado para ${seller.name} via Rodrigo Bot (FLUXO CORRIGIDO)`,
         details: {
           lead_id: leadId,
           seller: {
@@ -180,11 +189,16 @@ Retorne apenas a mensagem, sem aspas ou formatação extra.`,
             name: seller.name,
             phone: seller.phone_number
           },
-          communication_flow: "Rodrigo Bot → Vendedor",
+          communication_flow: "Rodrigo Bot → Vendedor (CORRIGIDO)",
           sender: "Rodrigo Bot (5551981155622)",
           recipient: `${seller.name} (${seller.phone_number})`,
           auto_first_message_sent: seller.auto_first_message,
-          send_result: sendResult
+          send_result: sendResult,
+          fluxo_corrigido: `5551981155622 → ${seller.phone_number}`,
+          expected_whatsapp_behavior: {
+            rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA para ${seller.name}`,
+            seller_whatsapp: `Mensagem aparece como RECEBIDA do Rodrigo Bot`
+          }
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -48,7 +48,7 @@ serve(async (req) => {
       type: request.type || 'text'
     })
 
-    // Identificar qual número está enviando baseado no token
+    // CRÍTICO: Identificar qual número está enviando baseado no token
     let senderPhone = 'unknown'
     let tokenSecretName = 'unknown'
     let direction = 'unknown'
@@ -58,10 +58,11 @@ serve(async (req) => {
       const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
       
       if (request.token === rodrigoBotToken) {
-        senderPhone = '555181155622' // Número correto sem o 9 extra
+        // CORREÇÃO: Usar o número correto do usuário
+        senderPhone = '5551981155622' // 51 981155622 com código 55
         tokenSecretName = 'WHAPI_TOKEN_5551981155622'
         direction = 'bot_to_seller'
-        console.log('🤖 Token identificado como: Rodrigo Bot')
+        console.log('🤖 Token identificado como: Rodrigo Bot - Número correto: 5551981155622')
       } else {
         // Pode ser token de vendedor - buscar no banco
         const { data: whapiConfig } = await supabase
@@ -84,11 +85,12 @@ serve(async (req) => {
       }
     }
 
-    console.log('🔍 Identificação do remetente:', {
+    console.log('🔍 Identificação do remetente CORRIGIDA:', {
       senderPhone,
       tokenSecretName,
       direction,
-      tokenMatches: senderPhone !== 'unknown'
+      tokenMatches: senderPhone !== 'unknown',
+      fluxo_esperado: senderPhone === '5551981155622' ? 'Rodrigo Bot → Vendedor' : 'Outro fluxo'
     })
 
     // Validar campos obrigatórios
@@ -165,7 +167,7 @@ serve(async (req) => {
     // URL da API WHAPI com autenticação padronizada
     const url = `https://gate.whapi.cloud/${endpoint}?token=${request.token}`
 
-    console.log('📤 Enviando para WHAPI:', {
+    console.log('📤 Enviando para WHAPI (FLUXO CORRIGIDO):', {
       url: url.replace(request.token, 'TOKEN_HIDDEN'),
       payload: {
         ...payload,
@@ -176,7 +178,9 @@ serve(async (req) => {
         senderPhone,
         tokenSecretName,
         direction
-      }
+      },
+      fluxo_esperado: `${senderPhone} → ${phoneValidation.formatted}`,
+      direcao_esperada: direction
     })
 
     // Enviar para WHAPI
@@ -204,16 +208,16 @@ serve(async (req) => {
       throw new Error(`Erro WHAPI ${response.status}: ${responseData.error || responseData.message || 'Erro desconhecido'}`)
     }
 
-    // Preparar dados para log com informações corretas do remetente
+    // Preparar dados para log com informações CORRETAS
     const logData = {
-      direction: direction, // Usar a direção identificada
-      phone_from: senderPhone, // Número que está enviando
-      phone_to: phoneValidation.formatted, // Número que está recebendo
+      direction: direction, // USAR A DIREÇÃO IDENTIFICADA CORRETAMENTE
+      phone_from: senderPhone, // RODRIGO BOT: 5551981155622
+      phone_to: phoneValidation.formatted, // VENDEDOR: ex. 5551997519607
       content: request.content,
       message_type: request.type || 'text',
       media_url: request.media?.url || null,
       whapi_message_id: responseData.message?.id || null,
-      token_secret_name: tokenSecretName, // CRÍTICO: incluir o nome do secret
+      token_secret_name: tokenSecretName, // WHAPI_TOKEN_5551981155622
       conversation_id: null,
       seller_id: null,
       status: responseData.sent || response.ok ? 'sent' : 'failed',
@@ -229,16 +233,22 @@ serve(async (req) => {
           tokenMatched: senderPhone !== 'unknown'
         },
         whapi_endpoint: endpoint,
-        whapi_status: response.status
+        whapi_status: response.status,
+        fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
+        expected_whatsapp_behavior: {
+          rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${phoneValidation.formatted}`,
+          seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE ${senderPhone}`
+        }
       }
     }
 
-    console.log('💾 Salvando log com dados:', {
+    console.log('💾 Salvando log com dados CORRIGIDOS:', {
       direction: logData.direction,
       phone_from: logData.phone_from,
       phone_to: logData.phone_to,
       token_secret_name: logData.token_secret_name,
-      status: logData.status
+      status: logData.status,
+      fluxo: `${logData.phone_from} → ${logData.phone_to}`
     })
 
     // Salvar log no banco
@@ -249,7 +259,7 @@ serve(async (req) => {
     if (logError) {
       console.error('❌ Erro ao salvar log:', logError)
     } else {
-      console.log('✅ Log salvo com sucesso')
+      console.log('✅ Log salvo com sucesso - FLUXO CORRIGIDO')
     }
 
     // Log de sistema para operações importantes
@@ -258,7 +268,7 @@ serve(async (req) => {
       .insert({
         type: responseData.sent || response.ok ? 'success' : 'error',
         source: 'whapi-send',
-        message: `Mensagem ${responseData.sent || response.ok ? 'enviada' : 'falhada'} via WHAPI`,
+        message: `Mensagem ${responseData.sent || response.ok ? 'enviada' : 'falhada'} via WHAPI - FLUXO CORRIGIDO`,
         details: {
           from: senderPhone,
           to: phoneValidation.formatted,
@@ -267,7 +277,12 @@ serve(async (req) => {
           message_id: responseData.message?.id,
           success: responseData.sent || response.ok,
           warnings: phoneValidation.warnings,
-          whapi_status: response.status
+          whapi_status: response.status,
+          fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
+          expected_result: {
+            rodrigo_bot_sees: "Mensagem ENVIADA (verde) no WhatsApp",
+            seller_sees: "Mensagem RECEBIDA (cinza) no WhatsApp"
+          }
         }
       })
 
@@ -279,7 +294,12 @@ serve(async (req) => {
         to: phoneValidation.formatted,
         direction: direction,
         token_used: tokenSecretName,
-        whapi_response: responseData
+        whapi_response: responseData,
+        fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
+        expected_whatsapp_behavior: {
+          rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${phoneValidation.formatted}`,
+          seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE ${senderPhone}`
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
