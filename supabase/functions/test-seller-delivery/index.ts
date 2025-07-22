@@ -44,7 +44,7 @@ serve(async (req) => {
 
     // Buscar token do Rodrigo Bot
     const { data: rodrigoToken } = await supabase.functions.invoke('get-secret', {
-      body: { name: 'WHAPI_TOKEN_5551981155622' }
+      body: { secretName: 'WHAPI_TOKEN_5551981155622' }
     })
 
     if (!rodrigoToken?.value) {
