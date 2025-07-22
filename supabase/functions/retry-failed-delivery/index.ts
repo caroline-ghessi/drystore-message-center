@@ -6,8 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface RetryRequest {
+interface RetryDeliveryRequest {
   deliveryId: string;
+  force?: boolean;
 }
 
 serve(async (req) => {
@@ -21,14 +22,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const { deliveryId }: RetryRequest = await req.json()
+    const { deliveryId, force = false }: RetryDeliveryRequest = await req.json()
 
     if (!deliveryId) {
       throw new Error('deliveryId é obrigatório')
     }
 
-    // Buscar o delivery falhado
-    const { data: delivery, error: deliveryError } = await supabase
+    // Buscar a mensagem falhada
+    const { data: failedMessage, error: fetchError } = await supabase
       .from('whapi_logs')
       .select(`
         *,
@@ -37,35 +38,36 @@ serve(async (req) => {
       .eq('id', deliveryId)
       .single()
 
-    if (deliveryError || !delivery) {
-      throw new Error(`Delivery não encontrado: ${deliveryError?.message}`)
+    if (fetchError || !failedMessage) {
+      throw new Error(`Mensagem não encontrada: ${fetchError?.message}`)
     }
 
-    if (delivery.status !== 'failed') {
-      throw new Error('Apenas deliveries falhados podem ser reenviados')
+    // Verificar se pode reenviar
+    if (!force && failedMessage.status !== 'failed') {
+      throw new Error(`Mensagem não está marcada como falhada. Status atual: ${failedMessage.status}`)
     }
 
-    console.log('Reenviando delivery:', {
-      id: delivery.id,
-      seller: delivery.sellers?.name,
-      phone: delivery.phone_to
+    // Verificar quantas tentativas já foram feitas
+    const retryCount = (failedMessage.metadata as any)?.retry_count || 0
+    if (!force && retryCount >= 3) {
+      throw new Error('Número máximo de tentativas excedido (3)')
+    }
+
+    console.log('Reenviando mensagem falhada:', {
+      id: deliveryId,
+      to: failedMessage.phone_to,
+      retry_count: retryCount,
+      seller: failedMessage.sellers?.name
     })
 
-    // Buscar token do Rodrigo Bot
-    const { data: rodrigoToken } = await supabase.functions.invoke('get-secret', {
-      body: { secretName: 'WHAPI_TOKEN_5551981155622' }
-    })
-
-    if (!rodrigoToken?.value) {
-      throw new Error('Token do Rodrigo Bot não encontrado')
-    }
-
-    // Reenviar via WHAPI
+    // Reenviar usando whapi-send
     const { data: sendResult, error: sendError } = await supabase.functions.invoke('whapi-send', {
       body: {
-        token: rodrigoToken.value,
-        to: delivery.phone_to,
-        content: `${delivery.content}\n\n⚠️ REENVIO - Mensagem anterior não foi entregue`
+        token: failedMessage.token_used,
+        to: failedMessage.phone_to,
+        content: failedMessage.content,
+        type: failedMessage.message_type || 'text',
+        media: failedMessage.media_url ? { url: failedMessage.media_url } : undefined
       }
     })
 
@@ -73,65 +75,55 @@ serve(async (req) => {
       throw new Error(`Erro no reenvio: ${sendError.message}`)
     }
 
-    // Atualizar o delivery original
+    if (!sendResult?.success) {
+      throw new Error(`Falha no reenvio: ${sendResult?.error}`)
+    }
+
+    // Atualizar o registro original com informações do retry
     await supabase
       .from('whapi_logs')
       .update({
         status: 'retry_sent',
         metadata: {
-          ...delivery.metadata,
-          retry_count: (delivery.metadata?.retry_count || 0) + 1,
-          last_retry: new Date().toISOString()
-        }
+          ...failedMessage.metadata,
+          retry_count: retryCount + 1,
+          retry_at: new Date().toISOString(),
+          retry_message_id: sendResult.message_id,
+          original_error: failedMessage.error_message
+        },
+        error_message: null
       })
       .eq('id', deliveryId)
 
-    // Criar novo log para o reenvio
-    await supabase
-      .from('whapi_logs')
-      .insert({
-        direction: 'sent',
-        phone_from: delivery.phone_from,
-        phone_to: delivery.phone_to,
-        content: `${delivery.content}\n\n⚠️ REENVIO`,
-        message_type: delivery.message_type,
-        whapi_message_id: sendResult.message_id,
-        token_used: rodrigoToken.value.substring(0, 10) + '...',
-        status: 'sent',
-        metadata: {
-          is_retry: true,
-          original_delivery_id: deliveryId,
-          retry_count: (delivery.metadata?.retry_count || 0) + 1
-        }
-      })
-
-    // Log do reenvio
+    // Log do retry
     await supabase
       .from('system_logs')
       .insert({
         type: 'info',
-        source: 'retry-delivery',
-        message: `Delivery reenviado para ${delivery.sellers?.name}`,
+        source: 'retry_delivery',
+        message: `Mensagem reenviada com sucesso para ${failedMessage.sellers?.name}`,
         details: {
-          original_delivery_id: deliveryId,
-          seller_name: delivery.sellers?.name,
-          phone_number: delivery.phone_to,
-          new_message_id: sendResult.message_id
+          original_id: deliveryId,
+          new_message_id: sendResult.message_id,
+          retry_count: retryCount + 1,
+          seller_name: failedMessage.sellers?.name,
+          phone_to: failedMessage.phone_to
         }
       })
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Delivery reenviado com sucesso',
-        seller_name: delivery.sellers?.name,
-        new_message_id: sendResult.message_id
+        message: `Mensagem reenviada para ${failedMessage.sellers?.name}`,
+        new_message_id: sendResult.message_id,
+        retry_count: retryCount + 1,
+        seller: failedMessage.sellers?.name
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Erro no reenvio:', error)
+    console.error('Erro no retry de entrega:', error)
     
     return new Response(
       JSON.stringify({

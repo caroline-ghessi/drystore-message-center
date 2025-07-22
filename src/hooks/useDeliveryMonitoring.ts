@@ -21,7 +21,7 @@ export const useDeliveryMonitoring = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Buscar mensagens pendentes
+  // Buscar mensagens pendentes com melhor filtragem
   const { data: pendingDeliveries = [], isLoading } = useQuery({
     queryKey: ['pending-deliveries'],
     queryFn: async () => {
@@ -39,7 +39,7 @@ export const useDeliveryMonitoring = () => {
           sellers!inner(name)
         `)
         .eq('direction', 'sent')
-        .in('status', ['sent', 'pending'])
+        .in('status', ['sent', 'pending', 'failed'])
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false });
 
@@ -57,7 +57,7 @@ export const useDeliveryMonitoring = () => {
         error_message: log.error_message
       })) as DeliveryStatus[];
     },
-    refetchInterval: 30000 // Refetch a cada 30 segundos
+    refetchInterval: 15000 // Refetch a cada 15 segundos para monitor mais ativo
   });
 
   // Verificar status de uma mensagem específica
@@ -75,20 +75,22 @@ export const useDeliveryMonitoring = () => {
     }
   });
 
-  // Verificar todos os status pendentes
+  // Verificar todos os status pendentes com melhor controle
   const checkAllPendingStatus = async () => {
     setIsChecking(true);
     try {
       let checkedCount = 0;
-      let updatedCount = 0;
+      const pendingMessages = pendingDeliveries.filter(d => 
+        d.status === 'pending' || d.status === 'sent'
+      );
 
-      for (const delivery of pendingDeliveries.filter(d => d.status === 'pending')) {
+      for (const delivery of pendingMessages) {
         try {
           await checkMessageStatus.mutateAsync(delivery.id);
           checkedCount++;
           
-          // Pequeno delay para não sobrecarregar a API
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Delay para não sobrecarregar a API
+          await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
           console.error(`Erro ao verificar status da mensagem ${delivery.id}:`, error);
         }
@@ -111,7 +113,7 @@ export const useDeliveryMonitoring = () => {
     }
   };
 
-  // Reenviar mensagem falhada
+  // Reenviar mensagem falhada com melhor handling
   const retryFailedMessage = useMutation({
     mutationFn: async (deliveryId: string) => {
       const { data, error } = await supabase.functions.invoke('retry-failed-delivery', {
@@ -124,7 +126,7 @@ export const useDeliveryMonitoring = () => {
     onSuccess: (data) => {
       toast({
         title: "Mensagem reenviada",
-        description: `Mensagem reenviada para ${data.seller_name}`,
+        description: `Mensagem reenviada para ${data.seller}`,
       });
       queryClient.invalidateQueries({ queryKey: ['pending-deliveries'] });
     },
@@ -137,7 +139,7 @@ export const useDeliveryMonitoring = () => {
     }
   });
 
-  // Validar número de telefone
+  // Validar número de telefone com validação melhorada
   const validatePhoneNumber = (phoneNumber: string): { isValid: boolean; formatted: string; warnings: string[] } => {
     const warnings: string[] = [];
     let formatted = phoneNumber.replace(/\D/g, '');
@@ -179,10 +181,16 @@ export const useDeliveryMonitoring = () => {
       return { isValid: false, formatted, warnings };
     }
 
+    // Verificar se é celular (deve começar com 9)
+    const numberPart = formatted.substring(4);
+    if (numberPart.length === 9 && !numberPart.startsWith('9')) {
+      warnings.push('Número pode ser fixo - WhatsApp requer celular');
+    }
+
     return { isValid: true, formatted, warnings };
   };
 
-  // Monitoramento automático de mensagens pendentes
+  // Monitoramento automático de mensagens pendentes com melhor controle
   const monitorPendingMessages = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('whapi-monitor-pending');
@@ -207,8 +215,21 @@ export const useDeliveryMonitoring = () => {
     }
   };
 
+  // Estatísticas de entrega
+  const deliveryStats = {
+    total: pendingDeliveries.length,
+    pending: pendingDeliveries.filter(d => d.status === 'pending' || d.status === 'sent').length,
+    delivered: pendingDeliveries.filter(d => d.status === 'delivered').length,
+    failed: pendingDeliveries.filter(d => d.status === 'failed').length,
+    read: pendingDeliveries.filter(d => d.status === 'read').length,
+    deliveryRate: pendingDeliveries.length > 0 
+      ? ((pendingDeliveries.filter(d => d.status === 'delivered' || d.status === 'read').length / pendingDeliveries.length) * 100).toFixed(1)
+      : '0'
+  };
+
   return {
     pendingDeliveries,
+    deliveryStats,
     isLoading,
     isChecking,
     checkAllPendingStatus,

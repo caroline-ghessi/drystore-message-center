@@ -1,5 +1,5 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,13 +9,14 @@ const corsHeaders = {
 interface WhapiSendRequest {
   token: string;
   to: string;
-  type: 'text' | 'media';
   content: string;
+  type?: 'text' | 'media';
   media?: {
     url?: string;
     base64?: string;
     filename?: string;
     caption?: string;
+    type?: 'image' | 'video' | 'audio' | 'document';
   };
   buttons?: Array<{
     id: string;
@@ -24,76 +25,85 @@ interface WhapiSendRequest {
   quoted?: string;
 }
 
-interface WhapiResponse {
-  sent: boolean;
-  message: {
-    id: string;
-    from: string;
-    to: string;
-    body: string;
-    timestamp: number;
-    status: string;
-  };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     const request: WhapiSendRequest = await req.json()
-    console.log('WHAPI Send request:', request)
+    console.log('WHAPI Send request:', {
+      token: request.token.substring(0, 10) + '...',
+      to: request.to,
+      content: request.content
+    })
 
-    // Validar dados obrigatórios
+    // Validar campos obrigatórios
     if (!request.token || !request.to || !request.content) {
-      throw new Error('Token, telefone de destino e conteúdo são obrigatórios')
+      throw new Error('Token, destinatário e conteúdo são obrigatórios')
     }
 
-    // Formatar e validar número de telefone
-    const phoneValidation = formatAndValidatePhoneNumber(request.to)
+    // Validação e formatação do número de telefone
+    const phoneValidation = validatePhoneNumber(request.to)
+    console.log('Validação do telefone:', phoneValidation)
+
     if (!phoneValidation.isValid) {
-      throw new Error(`Número de telefone inválido: ${phoneValidation.error}`)
+      throw new Error(`Número de telefone inválido: ${phoneValidation.warnings.join(', ')}`)
     }
 
-    const formattedPhone = phoneValidation.formatted
-
-    // Log da validação se houve warnings
+    // Se tem warnings críticos, alertar mas continuar
     if (phoneValidation.warnings.length > 0) {
-      await supabase.from('system_logs').insert({
-        type: 'warning',
-        source: 'whapi-send',
-        message: 'Avisos na validação do número',
-        details: {
-          original: request.to,
-          formatted: formattedPhone,
-          warnings: phoneValidation.warnings
-        }
-      })
+      console.warn('Avisos na validação do telefone:', phoneValidation.warnings)
+      
+      // Se número não começa com 9 (celular), pode ser problema
+      const numberPart = phoneValidation.formatted.substring(4) // Remove 55XX
+      if (!numberPart.startsWith('9') && numberPart.length === 9) {
+        throw new Error('Número parece ser fixo, não celular. WhatsApp requer números de celular.')
+      }
     }
 
-    // Preparar payload para WHAPI usando formato Chat ID correto
-    const payload: any = {
-      to: `${formattedPhone}@s.whatsapp.net`,
+    // Determinar endpoint baseado no tipo de mídia
+    let endpoint = 'messages/text'
+    let payload: any = {
+      to: `${phoneValidation.formatted}@s.whatsapp.net`,
       body: request.content
     }
 
-    // Adicionar mídia se fornecida
-    if (request.media) {
+    if (request.type === 'media' && request.media) {
+      // Endpoint dinâmico baseado no tipo de mídia
+      switch (request.media.type) {
+        case 'image':
+          endpoint = 'messages/image'
+          break
+        case 'video':
+          endpoint = 'messages/video'
+          break
+        case 'audio':
+          endpoint = 'messages/audio'
+          break
+        case 'document':
+          endpoint = 'messages/document'
+          break
+        default:
+          endpoint = 'messages/image' // fallback para compatibilidade
+      }
+
       if (request.media.url) {
-        payload.media = {
-          url: request.media.url,
+        payload = {
+          to: `${phoneValidation.formatted}@s.whatsapp.net`,
+          media: request.media.url,
           caption: request.media.caption || request.content
         }
       } else if (request.media.base64) {
-        payload.media = {
-          base64: request.media.base64,
-          filename: request.media.filename || 'file',
+        payload = {
+          to: `${phoneValidation.formatted}@s.whatsapp.net`,
+          media: request.media.base64,
+          filename: request.media.filename,
           caption: request.media.caption || request.content
         }
       }
@@ -104,91 +114,82 @@ serve(async (req) => {
       payload.buttons = request.buttons
     }
 
-    // Adicionar citação se fornecida
-    if (request.quoted) {
-      payload.quoted = request.quoted
-    }
+    // URL da API WHAPI com autenticação padronizada
+    const url = `https://gate.whapi.cloud/${endpoint}?token=${request.token}`
 
-    // Determinar endpoint baseado no tipo
-    const endpoint = request.type === 'media' && request.media 
-      ? 'messages/image' 
-      : 'messages/text'
-
-    // Enviar via WHAPI
-    const whapiUrl = `https://gate.whapi.cloud/${endpoint}?token=${request.token}`
-    
     console.log('Enviando para WHAPI:', {
-      url: whapiUrl,
-      payload: payload,
+      url: url.replace(request.token, 'TOKEN_HIDDEN'),
+      payload,
       phone_validation: phoneValidation
     })
 
-    const response = await fetch(whapiUrl, {
+    // Enviar para WHAPI
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     })
 
     const responseData = await response.json()
-
-    if (!response.ok) {
-      console.error('Erro WHAPI:', responseData)
-      throw new Error(`WHAPI error: ${responseData.message || response.statusText}`)
-    }
-
     console.log('Resposta WHAPI:', responseData)
 
-    // Log da chamada
-    await supabase.from('webhook_logs').insert({
-      method: 'POST',
-      url: whapiUrl,
-      source: 'whapi-send',
-      body: payload,
-      response_status: response.status,
-      response_body: responseData
-    })
+    if (!response.ok) {
+      throw new Error(`Erro WHAPI ${response.status}: ${responseData.error || responseData.message || 'Erro desconhecido'}`)
+    }
 
-    // Log específico WHAPI com validação
-    await supabase.from('whapi_logs').insert({
+    // Preparar dados para log
+    const logData = {
       direction: 'sent',
-      phone_from: responseData.message?.from || 'unknown',
-      phone_to: formattedPhone,
+      phone_from: responseData.message?.from || 'sistema',
+      phone_to: phoneValidation.formatted,
       content: request.content,
-      message_type: request.type,
-      media_url: request.media?.url,
-      whapi_message_id: responseData.message?.id,
+      message_type: request.type || 'text',
+      media_url: request.media?.url || null,
+      whapi_message_id: responseData.message?.id || null,
       token_used: request.token.substring(0, 10) + '...',
-      status: 'sent',
+      conversation_id: null,
+      seller_id: null,
+      status: responseData.sent ? 'sent' : 'failed',
+      error_message: responseData.sent ? null : 'Falha no envio WHAPI',
       metadata: {
         response: responseData,
-        request_type: request.type,
-        phone_validation: phoneValidation,
-        original_phone: request.to
+        original_phone: request.to,
+        phone_validation: phoneValidation
       }
-    })
+    }
 
-    // Log de sistema
-    await supabase.from('system_logs').insert({
-      type: 'success',
-      source: 'whapi-send',
-      message: `Mensagem WHAPI enviada para ${formattedPhone}`,
-      details: {
-        to: formattedPhone,
-        type: request.type,
-        message_id: responseData.message?.id
-      }
-    })
+    // Salvar log no banco
+    const { error: logError } = await supabase
+      .from('whapi_logs')
+      .insert(logData)
+
+    if (logError) {
+      console.error('Erro ao salvar log:', logError)
+    }
+
+    // Log de sistema para operações importantes
+    await supabase
+      .from('system_logs')
+      .insert({
+        type: responseData.sent ? 'success' : 'error',
+        source: 'whapi-send',
+        message: `Mensagem ${responseData.sent ? 'enviada' : 'falhada'} via WHAPI`,
+        details: {
+          to: phoneValidation.formatted,
+          message_id: responseData.message?.id,
+          success: responseData.sent,
+          warnings: phoneValidation.warnings
+        }
+      })
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: responseData.sent || false,
         message_id: responseData.message?.id,
-        to: formattedPhone,
-        phone_validation: phoneValidation,
-        data: responseData
+        to: phoneValidation.formatted,
+        whapi_response: responseData
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -196,124 +197,64 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erro no envio WHAPI:', error)
 
-    // Log do erro
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    await supabase.from('system_logs').insert({
-      type: 'error',
-      source: 'whapi-send',
-      message: 'Erro ao enviar mensagem WHAPI',
-      details: { 
-        error: error.message, 
-        stack: error.stack 
-      }
-    })
-
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
+      JSON.stringify({
+        success: false,
+        error: error.message
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
-        status: 500 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
       }
     )
   }
 })
 
-function formatAndValidatePhoneNumber(phone: string): {
-  isValid: boolean;
-  formatted: string;
-  error?: string;
-  warnings: string[];
-} {
-  const warnings: string[] = [];
-  
-  // Remove caracteres não numéricos
-  let cleaned = phone.replace(/\D/g, '');
-  
+function validatePhoneNumber(phone: string): { isValid: boolean; formatted: string; warnings: string[] } {
+  const warnings: string[] = []
+  let cleaned = phone.replace(/\D/g, '')
+
   if (!cleaned) {
-    return { isValid: false, formatted: '', error: 'Número vazio', warnings };
+    return { isValid: false, formatted: '', warnings: ['Número vazio'] }
   }
 
-  // Remove zeros à esquerda
-  cleaned = cleaned.replace(/^0+/, '');
-  
-  // Verificar comprimento mínimo
-  if (cleaned.length < 10) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: `Número muito curto: ${cleaned.length} dígitos`, 
-      warnings 
-    };
-  }
+  // Remover zeros à esquerda
+  cleaned = cleaned.replace(/^0+/, '')
 
-  // Se não começa com 55, adicionar código do país
+  // Verificar se já tem código do país
   if (!cleaned.startsWith('55')) {
     if (cleaned.length >= 10 && cleaned.length <= 11) {
-      cleaned = '55' + cleaned;
-      warnings.push('Código do país (55) adicionado automaticamente');
+      cleaned = '55' + cleaned
+      warnings.push('Código do país (55) adicionado automaticamente')
     } else {
-      return { 
-        isValid: false, 
-        formatted: cleaned, 
-        error: `Comprimento inválido sem código do país: ${cleaned.length}`, 
-        warnings 
-      };
+      warnings.push('Número com formato suspeito')
     }
   }
 
-  // Validar comprimento final (12-13 dígitos)
+  // Validar comprimento final (55 + DDD + número)
   if (cleaned.length < 12 || cleaned.length > 13) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: `Comprimento final inválido: ${cleaned.length} dígitos`, 
-      warnings 
-    };
+    warnings.push(`Comprimento inválido: ${cleaned.length} dígitos`)
+    return { isValid: false, formatted: cleaned, warnings }
   }
 
-  // Extrair e validar DDD (deve estar entre 11 e 99)
-  const ddd = cleaned.substring(2, 4);
-  const dddNum = parseInt(ddd);
-  if (dddNum < 11 || dddNum > 99) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: `DDD inválido: ${ddd}`, 
-      warnings 
-    };
+  // Verificar se é número brasileiro válido
+  if (!cleaned.startsWith('55')) {
+    warnings.push('Não é um número brasileiro')
+    return { isValid: false, formatted: cleaned, warnings }
   }
 
-  // Validar número do telefone (deve ter 8 ou 9 dígitos após DDD)
-  const phoneNumber = cleaned.substring(4);
-  if (phoneNumber.length < 8 || phoneNumber.length > 9) {
-    return { 
-      isValid: false, 
-      formatted: cleaned, 
-      error: `Número de telefone inválido: ${phoneNumber} (${phoneNumber.length} dígitos)`, 
-      warnings 
-    };
+  // Verificar DDD válido (11-99)
+  const ddd = cleaned.substring(2, 4)
+  if (parseInt(ddd) < 11 || parseInt(ddd) > 99) {
+    warnings.push(`DDD inválido: ${ddd}`)
+    return { isValid: false, formatted: cleaned, warnings }
   }
 
-  // Verificar se é celular (9 dígitos começando com 9)
-  if (phoneNumber.length === 9 && !phoneNumber.startsWith('9')) {
-    warnings.push('Número de 9 dígitos que não começa com 9 - pode ser inválido');
+  // Verificar se é número de celular (deve começar com 9)
+  const numberPart = cleaned.substring(4)
+  if (numberPart.length === 9 && !numberPart.startsWith('9')) {
+    warnings.push('Número pode ser fixo - WhatsApp funciona apenas com celulares')
   }
 
-  // Verificar se é fixo (8 dígitos não começando com 9)
-  if (phoneNumber.length === 8 && phoneNumber.startsWith('9')) {
-    warnings.push('Número de 8 dígitos começando com 9 - formato suspeito');
-  }
-
-  return {
-    isValid: true,
-    formatted: cleaned,
-    warnings
-  };
+  return { isValid: true, formatted: cleaned, warnings }
 }

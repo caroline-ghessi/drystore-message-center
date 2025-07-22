@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -44,23 +45,58 @@ serve(async (req) => {
 
     for (const message of pendingMessages || []) {
       try {
-        // Verificar status na API WHAPI - usando endpoint correto para status
-        const statusResponse = await fetch(`https://gate.whapi.cloud/statuses/${message.whapi_message_id}`, {
+        // Verificar status na API WHAPI - usando endpoint correto para status e autenticação padronizada
+        const statusResponse = await fetch(`https://gate.whapi.cloud/statuses/${message.whapi_message_id}?token=${message.token_used}`, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${message.token_used}`,
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
           }
         })
 
         if (statusResponse.ok) {
           const statusData = await statusResponse.json()
           
+          // Mapear status do WHAPI para nosso sistema
+          let newStatus = message.status
+          let errorMessage = null
+
+          switch (statusData.status) {
+            case 'sent':
+            case 'pending':
+              newStatus = 'pending'
+              break
+            case 'delivered':
+              newStatus = 'delivered'
+              break
+            case 'read':
+              newStatus = 'read'
+              break
+            case 'failed':
+              newStatus = 'failed'
+              errorMessage = statusData.error || 'Falha reportada pelo WHAPI'
+              break
+            default:
+              // Se status for "pending" por muito tempo (>15 min), marcar como suspeito
+              const sentTime = new Date(message.created_at).getTime()
+              const now = Date.now()
+              const minutesElapsed = (now - sentTime) / (1000 * 60)
+              
+              if (minutesElapsed > 15 && statusData.status === 'pending') {
+                newStatus = 'failed'
+                errorMessage = 'Mensagem pendente por muito tempo - possível número inválido'
+              }
+          }
+
           // Atualizar status no banco
+          const updateData: any = { status: newStatus }
+          if (errorMessage) {
+            updateData.error_message = errorMessage
+          }
+
           await supabase
             .from('whapi_logs')
-            .update({ 
-              status: statusData.status || 'unknown',
+            .update({
+              ...updateData,
               metadata: {
                 ...statusData,
                 auto_status_check: true,
@@ -73,12 +109,12 @@ serve(async (req) => {
             id: message.id,
             whapi_message_id: message.whapi_message_id,
             old_status: 'sent',
-            new_status: statusData.status,
+            new_status: newStatus,
             seller_name: message.sellers?.name
           })
 
           // Se ainda estiver failed após 30 segundos, alertar
-          if (statusData.status === 'failed') {
+          if (newStatus === 'failed') {
             await supabase
               .from('system_logs')
               .insert({
@@ -89,22 +125,27 @@ serve(async (req) => {
                   message_id: message.whapi_message_id,
                   seller_phone: message.phone_to,
                   seller_name: message.sellers?.name,
-                  failure_reason: statusData.error || 'Desconhecido'
+                  failure_reason: errorMessage || 'Desconhecido'
                 }
               })
           }
         } else {
+          console.error('Erro WHAPI:', statusResponse.status, await statusResponse.text())
           failedChecks.push({
             id: message.id,
             error: `HTTP ${statusResponse.status}`
           })
         }
       } catch (error) {
+        console.error('Erro ao verificar mensagem:', message.id, error)
         failedChecks.push({
           id: message.id,
           error: error.message
         })
       }
+
+      // Pequeno delay para não sobrecarregar a API
+      await new Promise(resolve => setTimeout(resolve, 200))
     }
 
     // Log do monitoramento
