@@ -53,7 +53,7 @@ export const useDeliveryMonitoring = () => {
         status: log.status === 'sent' ? 'pending' : log.status,
         sent_at: log.created_at,
         last_checked: log.created_at,
-        retry_count: log.metadata?.retry_count || 0,
+        retry_count: (log.metadata as any)?.retry_count || 0,
         error_message: log.error_message
       })) as DeliveryStatus[];
     },
@@ -94,11 +94,18 @@ export const useDeliveryMonitoring = () => {
         }
       }
 
-      toast.success(`Status verificado para ${checkedCount} mensagens`);
+      toast({
+        title: "Status verificado",
+        description: `Status verificado para ${checkedCount} mensagens`,
+      });
       
     } catch (error) {
       console.error('Erro ao verificar status:', error);
-      toast.error('Erro ao verificar status das mensagens');
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar status das mensagens",
+        variant: "destructive"
+      });
     } finally {
       setIsChecking(false);
     }
@@ -115,11 +122,18 @@ export const useDeliveryMonitoring = () => {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Mensagem reenviada para ${data.seller_name}`);
+      toast({
+        title: "Mensagem reenviada",
+        description: `Mensagem reenviada para ${data.seller_name}`,
+      });
       queryClient.invalidateQueries({ queryKey: ['pending-deliveries'] });
     },
     onError: (error: Error) => {
-      toast.error(`Erro no reenvio: ${error.message}`);
+      toast({
+        title: "Erro no reenvio",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   });
 
