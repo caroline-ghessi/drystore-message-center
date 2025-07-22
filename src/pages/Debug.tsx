@@ -11,6 +11,7 @@ import { MessageQueueMonitor } from "@/components/Debug/MessageQueueMonitor";
 import { MessageDeliveryMonitor } from "@/components/Debug/MessageDeliveryMonitor";
 import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 import { DeliveryTestPanel } from "@/components/Debug/DeliveryTestPanel";
+import { DeliveryMonitorPanel } from "@/components/Debug/DeliveryMonitorPanel";
 
 export default function Debug() {
   return (
@@ -21,7 +22,7 @@ export default function Debug() {
       </div>
 
       <Tabs defaultValue="whatsapp" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify</TabsTrigger>
           <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
@@ -29,6 +30,7 @@ export default function Debug() {
           <TabsTrigger value="delivery">Entrega</TabsTrigger>
           <TabsTrigger value="delivery-test">Teste Entrega</TabsTrigger>
           <TabsTrigger value="monitoring">Monitoramento</TabsTrigger>
+          <TabsTrigger value="delivery-monitor">Monitor</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
@@ -60,6 +62,10 @@ export default function Debug() {
 
         <TabsContent value="monitoring" className="space-y-6">
           <DeliveryStatusPanel />
+        </TabsContent>
+
+        <TabsContent value="delivery-monitor" className="space-y-6">
+          <DeliveryMonitorPanel />
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-6">

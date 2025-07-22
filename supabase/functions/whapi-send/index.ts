@@ -55,8 +55,27 @@ serve(async (req) => {
       throw new Error('Token, telefone de destino e conteúdo são obrigatórios')
     }
 
-    // Formatar número de telefone
-    const formattedPhone = formatPhoneNumber(request.to)
+    // Formatar e validar número de telefone
+    const phoneValidation = formatAndValidatePhoneNumber(request.to)
+    if (!phoneValidation.isValid) {
+      throw new Error(`Número de telefone inválido: ${phoneValidation.error}`)
+    }
+
+    const formattedPhone = phoneValidation.formatted
+
+    // Log da validação se houve warnings
+    if (phoneValidation.warnings.length > 0) {
+      await supabase.from('system_logs').insert({
+        type: 'warning',
+        source: 'whapi-send',
+        message: 'Avisos na validação do número',
+        details: {
+          original: request.to,
+          formatted: formattedPhone,
+          warnings: phoneValidation.warnings
+        }
+      })
+    }
 
     // Preparar payload para WHAPI
     const payload: any = {
@@ -100,7 +119,8 @@ serve(async (req) => {
     
     console.log('Enviando para WHAPI:', {
       url: whapiUrl,
-      payload: payload
+      payload: payload,
+      phone_validation: phoneValidation
     })
 
     const response = await fetch(whapiUrl, {
@@ -131,7 +151,7 @@ serve(async (req) => {
       response_body: responseData
     })
 
-    // Log específico WHAPI
+    // Log específico WHAPI com validação
     await supabase.from('whapi_logs').insert({
       direction: 'sent',
       phone_from: responseData.message?.from || 'unknown',
@@ -144,7 +164,9 @@ serve(async (req) => {
       status: 'sent',
       metadata: {
         response: responseData,
-        request_type: request.type
+        request_type: request.type,
+        phone_validation: phoneValidation,
+        original_phone: request.to
       }
     })
 
@@ -165,6 +187,7 @@ serve(async (req) => {
         success: true,
         message_id: responseData.message?.id,
         to: formattedPhone,
+        phone_validation: phoneValidation,
         data: responseData
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -202,30 +225,95 @@ serve(async (req) => {
   }
 })
 
-function formatPhoneNumber(phone: string): string {
+function formatAndValidatePhoneNumber(phone: string): {
+  isValid: boolean;
+  formatted: string;
+  error?: string;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  
   // Remove caracteres não numéricos
-  const cleaned = phone.replace(/\D/g, '')
+  let cleaned = phone.replace(/\D/g, '');
   
-  // Validação de número brasileiro
-  if (cleaned.length < 10 || cleaned.length > 13) {
-    throw new Error(`Número de telefone inválido: ${phone}`)
+  if (!cleaned) {
+    return { isValid: false, formatted: '', error: 'Número vazio', warnings };
   }
+
+  // Remove zeros à esquerda
+  cleaned = cleaned.replace(/^0+/, '');
   
-  // Se já começa com 55, retorna como está
-  if (cleaned.startsWith('55')) {
-    return cleaned
+  // Verificar comprimento mínimo
+  if (cleaned.length < 10) {
+    return { 
+      isValid: false, 
+      formatted: cleaned, 
+      error: `Número muito curto: ${cleaned.length} dígitos`, 
+      warnings 
+    };
   }
-  
-  // Se começa com 0, remove o 0 e adiciona 55
-  if (cleaned.startsWith('0')) {
-    return `55${cleaned.substring(1)}`
+
+  // Se não começa com 55, adicionar código do país
+  if (!cleaned.startsWith('55')) {
+    if (cleaned.length >= 10 && cleaned.length <= 11) {
+      cleaned = '55' + cleaned;
+      warnings.push('Código do país (55) adicionado automaticamente');
+    } else {
+      return { 
+        isValid: false, 
+        formatted: cleaned, 
+        error: `Comprimento inválido sem código do país: ${cleaned.length}`, 
+        warnings 
+      };
+    }
   }
-  
-  // Se tem 10 ou 11 dígitos (formato brasileiro sem código do país), adiciona 55
-  if (cleaned.length >= 10 && cleaned.length <= 11) {
-    return `55${cleaned}`
+
+  // Validar comprimento final (12-13 dígitos)
+  if (cleaned.length < 12 || cleaned.length > 13) {
+    return { 
+      isValid: false, 
+      formatted: cleaned, 
+      error: `Comprimento final inválido: ${cleaned.length} dígitos`, 
+      warnings 
+    };
   }
-  
-  // Para outros casos, assume que precisa do código do país
-  return `55${cleaned}`
+
+  // Extrair e validar DDD (deve estar entre 11 e 99)
+  const ddd = cleaned.substring(2, 4);
+  const dddNum = parseInt(ddd);
+  if (dddNum < 11 || dddNum > 99) {
+    return { 
+      isValid: false, 
+      formatted: cleaned, 
+      error: `DDD inválido: ${ddd}`, 
+      warnings 
+    };
+  }
+
+  // Validar número do telefone (deve ter 8 ou 9 dígitos após DDD)
+  const phoneNumber = cleaned.substring(4);
+  if (phoneNumber.length < 8 || phoneNumber.length > 9) {
+    return { 
+      isValid: false, 
+      formatted: cleaned, 
+      error: `Número de telefone inválido: ${phoneNumber} (${phoneNumber.length} dígitos)`, 
+      warnings 
+    };
+  }
+
+  // Verificar se é celular (9 dígitos começando com 9)
+  if (phoneNumber.length === 9 && !phoneNumber.startsWith('9')) {
+    warnings.push('Número de 9 dígitos que não começa com 9 - pode ser inválido');
+  }
+
+  // Verificar se é fixo (8 dígitos não começando com 9)
+  if (phoneNumber.length === 8 && phoneNumber.startsWith('9')) {
+    warnings.push('Número de 8 dígitos começando com 9 - formato suspeito');
+  }
+
+  return {
+    isValid: true,
+    formatted: cleaned,
+    warnings
+  };
 }
