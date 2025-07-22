@@ -77,9 +77,9 @@ serve(async (req) => {
       })
     }
 
-    // Preparar payload para WHAPI
+    // Preparar payload para WHAPI usando formato Chat ID correto
     const payload: any = {
-      to: formattedPhone,
+      to: `${formattedPhone}@s.whatsapp.net`,
       body: request.content
     }
 

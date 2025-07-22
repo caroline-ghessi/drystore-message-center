@@ -19,7 +19,8 @@ export const DeliveryMonitorPanel = () => {
     checkAllPendingStatus,
     retryFailedMessage,
     isRetrying,
-    validatePhoneNumber
+    validatePhoneNumber,
+    monitorPendingMessages
   } = useDeliveryMonitoring();
 
   const getStatusIcon = (status: string) => {
@@ -125,23 +126,34 @@ export const DeliveryMonitorPanel = () => {
             <div className="text-sm text-muted-foreground">
               {pendingDeliveries.length} mensagens encontradas
             </div>
-            <Button 
-              onClick={checkAllPendingStatus}
-              disabled={isChecking || isLoading}
-              size="sm"
-            >
-              {isChecking ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verificando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Verificar Status
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={monitorPendingMessages}
+                disabled={isChecking || isLoading}
+                variant="outline"
+                size="sm"
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                Monitor Auto
+              </Button>
+              <Button 
+                onClick={checkAllPendingStatus}
+                disabled={isChecking || isLoading}
+                size="sm"
+              >
+                {isChecking ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Verificar Status
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {isLoading ? (

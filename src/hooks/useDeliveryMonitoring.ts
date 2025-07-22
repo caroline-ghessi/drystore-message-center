@@ -182,6 +182,31 @@ export const useDeliveryMonitoring = () => {
     return { isValid: true, formatted, warnings };
   };
 
+  // Monitoramento automático de mensagens pendentes
+  const monitorPendingMessages = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('whapi-monitor-pending');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Monitoramento executado",
+        description: `${data.checked_count} mensagens verificadas, ${data.error_count} erros`,
+      });
+      
+      // Refetch dos dados após monitoramento
+      queryClient.invalidateQueries({ queryKey: ['pending-deliveries'] });
+      
+    } catch (error) {
+      console.error('Erro no monitoramento:', error);
+      toast({
+        title: "Erro no monitoramento",
+        description: "Falha ao verificar mensagens pendentes",
+        variant: "destructive"
+      });
+    }
+  };
+
   return {
     pendingDeliveries,
     isLoading,
@@ -189,6 +214,7 @@ export const useDeliveryMonitoring = () => {
     checkAllPendingStatus,
     retryFailedMessage: retryFailedMessage.mutate,
     isRetrying: retryFailedMessage.isPending,
-    validatePhoneNumber
+    validatePhoneNumber,
+    monitorPendingMessages
   };
 };
