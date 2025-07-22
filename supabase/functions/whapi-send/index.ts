@@ -25,6 +25,94 @@ interface WhapiSendRequest {
   quoted?: string;
 }
 
+// Função para normalizar números brasileiros para WHAPI
+function normalizePhoneForWhapi(phone: string): string {
+  let cleaned = phone.replace(/\D/g, '');
+  cleaned = cleaned.replace(/^0+/, '');
+  
+  if (!cleaned.startsWith('55')) {
+    if (cleaned.length >= 10 && cleaned.length <= 11) {
+      cleaned = '55' + cleaned;
+    }
+  }
+  
+  if (!cleaned.startsWith('55') || cleaned.length < 12 || cleaned.length > 13) {
+    throw new Error(`Número brasileiro inválido: ${phone}`);
+  }
+  
+  const countryCode = cleaned.substring(0, 2);
+  const areaCode = cleaned.substring(2, 4);
+  const number = cleaned.substring(4);
+  
+  console.log('🔍 Normalizando número para WHAPI:', {
+    original: phone,
+    countryCode,
+    areaCode,
+    number,
+    numberLength: number.length
+  });
+  
+  // Se é celular com 9º dígito (novo formato), remove o 9
+  if (number.length === 9 && number.startsWith('9')) {
+    const normalizedNumber = number.substring(1);
+    const result = countryCode + areaCode + normalizedNumber;
+    
+    console.log('📱 CORREÇÃO: Removendo 9º dígito para compatibilidade WHAPI:', {
+      original: `${countryCode}${areaCode}${number}`,
+      normalized: result,
+      explanation: 'WHAPI usa formato antigo (sem 9º dígito)'
+    });
+    
+    return result;
+  }
+  
+  console.log('📞 Número já no formato correto para WHAPI:', cleaned);
+  return cleaned;
+}
+
+function validatePhoneNumber(phone: string): { isValid: boolean; formatted: string; warnings: string[] } {
+  const warnings: string[] = []
+  let cleaned = phone.replace(/\D/g, '')
+
+  if (!cleaned) {
+    return { isValid: false, formatted: '', warnings: ['Número vazio'] }
+  }
+
+  cleaned = cleaned.replace(/^0+/, '')
+
+  if (!cleaned.startsWith('55')) {
+    if (cleaned.length >= 10 && cleaned.length <= 11) {
+      cleaned = '55' + cleaned
+      warnings.push('Código do país (55) adicionado automaticamente')
+    } else {
+      warnings.push('Número com formato suspeito')
+    }
+  }
+
+  if (cleaned.length < 12 || cleaned.length > 13) {
+    warnings.push(`Comprimento inválido: ${cleaned.length} dígitos`)
+    return { isValid: false, formatted: cleaned, warnings }
+  }
+
+  if (!cleaned.startsWith('55')) {
+    warnings.push('Não é um número brasileiro')
+    return { isValid: false, formatted: cleaned, warnings }
+  }
+
+  const ddd = cleaned.substring(2, 4)
+  if (parseInt(ddd) < 11 || parseInt(ddd) > 99) {
+    warnings.push(`DDD inválido: ${ddd}`)
+    return { isValid: false, formatted: cleaned, warnings }
+  }
+
+  const numberPart = cleaned.substring(4)
+  if (numberPart.length === 9 && !numberPart.startsWith('9')) {
+    warnings.push('Número pode ser fixo - WhatsApp funciona apenas com celulares')
+  }
+
+  return { isValid: true, formatted: cleaned, warnings }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -38,7 +126,6 @@ serve(async (req) => {
 
     const request: WhapiSendRequest = await req.json()
     
-    // Mascarar token para logs
     const tokenMasked = request.token.substring(0, 10) + '...'
     
     console.log('📨 WHAPI Send request recebido:', {
@@ -48,23 +135,22 @@ serve(async (req) => {
       type: request.type || 'text'
     })
 
-    // CRÍTICO: Identificar qual número está enviando baseado no token
+    // Identificar qual número está enviando baseado no token
     let senderPhone = 'unknown'
     let tokenSecretName = 'unknown'
     let direction = 'unknown'
 
     // Verificar se é o token do Rodrigo Bot
-    if (request.token.length > 20) { // Validação básica de token WHAPI
+    if (request.token.length > 20) {
       const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
       
       if (request.token === rodrigoBotToken) {
-        // CORREÇÃO: Usar o número correto do usuário
-        senderPhone = '5551981155622' // 51 981155622 com código 55
+        senderPhone = '5551981155622'
         tokenSecretName = 'WHAPI_TOKEN_5551981155622'
         direction = 'bot_to_seller'
-        console.log('🤖 Token identificado como: Rodrigo Bot - Número correto: 5551981155622')
+        console.log('🤖 Token identificado como: Rodrigo Bot - Número: 5551981155622')
       } else {
-        // Pode ser token de vendedor - buscar no banco
+        // Buscar token de vendedor no banco
         const { data: whapiConfig } = await supabase
           .from('whapi_configurations')
           .select('phone_number, token_secret_name, type')
@@ -85,47 +171,47 @@ serve(async (req) => {
       }
     }
 
-    console.log('🔍 Identificação do remetente CORRIGIDA:', {
+    console.log('🔍 Identificação do remetente:', {
       senderPhone,
       tokenSecretName,
       direction,
-      tokenMatches: senderPhone !== 'unknown',
-      fluxo_esperado: senderPhone === '5551981155622' ? 'Rodrigo Bot → Vendedor' : 'Outro fluxo'
+      tokenMatches: senderPhone !== 'unknown'
     })
 
-    // Validar campos obrigatórios
     if (!request.token || !request.to || !request.content) {
       throw new Error('Token, destinatário e conteúdo são obrigatórios')
     }
 
-    // Validação e formatação do número de telefone
+    // CRÍTICO: Usar normalização para WHAPI
+    let normalizedPhone: string
+    try {
+      normalizedPhone = normalizePhoneForWhapi(request.to)
+      console.log('✅ Número normalizado para WHAPI:', {
+        original: request.to,
+        normalized: normalizedPhone,
+        explanation: 'Formato compatível com WHAPI (sem 9º dígito se celular)'
+      })
+    } catch (error) {
+      console.error('❌ Erro na normalização do número:', error)
+      throw new Error(`Erro ao normalizar número: ${error.message}`)
+    }
+
+    // Validação adicional
     const phoneValidation = validatePhoneNumber(request.to)
-    console.log('📱 Validação do telefone:', phoneValidation)
+    console.log('📱 Validação do telefone original:', phoneValidation)
 
     if (!phoneValidation.isValid) {
       throw new Error(`Número de telefone inválido: ${phoneValidation.warnings.join(', ')}`)
     }
 
-    // Se tem warnings críticos, alertar mas continuar
-    if (phoneValidation.warnings.length > 0) {
-      console.warn('⚠️ Avisos na validação do telefone:', phoneValidation.warnings)
-      
-      // Se número não começa com 9 (celular), pode ser problema
-      const numberPart = phoneValidation.formatted.substring(4) // Remove 55XX
-      if (!numberPart.startsWith('9') && numberPart.length === 9) {
-        throw new Error('Número parece ser fixo, não celular. WhatsApp requer números de celular.')
-      }
-    }
-
     // Determinar endpoint baseado no tipo de mídia
     let endpoint = 'messages/text'
     let payload: any = {
-      to: `${phoneValidation.formatted}@s.whatsapp.net`,
+      to: `${normalizedPhone}@s.whatsapp.net`, // USAR NÚMERO NORMALIZADO
       body: request.content
     }
 
     if (request.type === 'media' && request.media) {
-      // Endpoint dinâmico baseado no tipo de mídia
       switch (request.media.type) {
         case 'image':
           endpoint = 'messages/image'
@@ -140,18 +226,18 @@ serve(async (req) => {
           endpoint = 'messages/document'
           break
         default:
-          endpoint = 'messages/image' // fallback para compatibilidade
+          endpoint = 'messages/image'
       }
 
       if (request.media.url) {
         payload = {
-          to: `${phoneValidation.formatted}@s.whatsapp.net`,
+          to: `${normalizedPhone}@s.whatsapp.net`,
           media: request.media.url,
           caption: request.media.caption || request.content
         }
       } else if (request.media.base64) {
         payload = {
-          to: `${phoneValidation.formatted}@s.whatsapp.net`,
+          to: `${normalizedPhone}@s.whatsapp.net`,
           media: request.media.base64,
           filename: request.media.filename,
           caption: request.media.caption || request.content
@@ -159,28 +245,29 @@ serve(async (req) => {
       }
     }
 
-    // Adicionar botões se fornecidos
     if (request.buttons && request.buttons.length > 0) {
       payload.buttons = request.buttons
     }
 
-    // URL da API WHAPI com autenticação padronizada
     const url = `https://gate.whapi.cloud/${endpoint}?token=${request.token}`
 
-    console.log('📤 Enviando para WHAPI (FLUXO CORRIGIDO):', {
+    console.log('📤 Enviando para WHAPI (COM NORMALIZAÇÃO):', {
       url: url.replace(request.token, 'TOKEN_HIDDEN'),
       payload: {
         ...payload,
         body: payload.body?.substring(0, 50) + '...'
       },
-      phone_validation: phoneValidation,
+      normalizacao: {
+        original: request.to,
+        normalizado: normalizedPhone,
+        whatsapp_format: `${normalizedPhone}@s.whatsapp.net`
+      },
       sender_identification: {
         senderPhone,
         tokenSecretName,
         direction
       },
-      fluxo_esperado: `${senderPhone} → ${phoneValidation.formatted}`,
-      direcao_esperada: direction
+      fluxo_esperado: `${senderPhone} → ${normalizedPhone} (NORMALIZADO)`
     })
 
     // Enviar para WHAPI
@@ -208,16 +295,16 @@ serve(async (req) => {
       throw new Error(`Erro WHAPI ${response.status}: ${responseData.error || responseData.message || 'Erro desconhecido'}`)
     }
 
-    // Preparar dados para log com informações CORRETAS
+    // Preparar dados para log
     const logData = {
-      direction: direction, // USAR A DIREÇÃO IDENTIFICADA CORRETAMENTE
-      phone_from: senderPhone, // RODRIGO BOT: 5551981155622
-      phone_to: phoneValidation.formatted, // VENDEDOR: ex. 5551997519607
+      direction: direction,
+      phone_from: senderPhone,
+      phone_to: normalizedPhone, // USAR NÚMERO NORMALIZADO NOS LOGS
       content: request.content,
       message_type: request.type || 'text',
       media_url: request.media?.url || null,
       whapi_message_id: responseData.message?.id || null,
-      token_secret_name: tokenSecretName, // WHAPI_TOKEN_5551981155622
+      token_secret_name: tokenSecretName,
       conversation_id: null,
       seller_id: null,
       status: responseData.sent || response.ok ? 'sent' : 'failed',
@@ -225,6 +312,7 @@ serve(async (req) => {
       metadata: {
         response: responseData,
         original_phone: request.to,
+        normalized_phone: normalizedPhone,
         phone_validation: phoneValidation,
         sender_identification: {
           senderPhone,
@@ -234,21 +322,18 @@ serve(async (req) => {
         },
         whapi_endpoint: endpoint,
         whapi_status: response.status,
-        fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
-        expected_whatsapp_behavior: {
-          rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${phoneValidation.formatted}`,
-          seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE ${senderPhone}`
-        }
+        normalizacao_aplicada: request.to !== normalizedPhone,
+        fluxo_corrigido: `${senderPhone} → ${normalizedPhone}`
       }
     }
 
-    console.log('💾 Salvando log com dados CORRIGIDOS:', {
+    console.log('💾 Salvando log (COM NORMALIZAÇÃO):', {
       direction: logData.direction,
       phone_from: logData.phone_from,
       phone_to: logData.phone_to,
       token_secret_name: logData.token_secret_name,
       status: logData.status,
-      fluxo: `${logData.phone_from} → ${logData.phone_to}`
+      normalizacao: request.to !== normalizedPhone ? `${request.to} → ${normalizedPhone}` : 'não aplicada'
     })
 
     // Salvar log no banco
@@ -259,30 +344,27 @@ serve(async (req) => {
     if (logError) {
       console.error('❌ Erro ao salvar log:', logError)
     } else {
-      console.log('✅ Log salvo com sucesso - FLUXO CORRIGIDO')
+      console.log('✅ Log salvo com sucesso - NORMALIZAÇÃO APLICADA')
     }
 
-    // Log de sistema para operações importantes
+    // Log de sistema
     await supabase
       .from('system_logs')
       .insert({
         type: responseData.sent || response.ok ? 'success' : 'error',
         source: 'whapi-send',
-        message: `Mensagem ${responseData.sent || response.ok ? 'enviada' : 'falhada'} via WHAPI - FLUXO CORRIGIDO`,
+        message: `Mensagem ${responseData.sent || response.ok ? 'enviada' : 'falhada'} via WHAPI - NORMALIZAÇÃO APLICADA`,
         details: {
           from: senderPhone,
-          to: phoneValidation.formatted,
+          to: normalizedPhone,
+          original_to: request.to,
           direction: direction,
           token_secret_name: tokenSecretName,
           message_id: responseData.message?.id,
           success: responseData.sent || response.ok,
-          warnings: phoneValidation.warnings,
+          normalizacao_aplicada: request.to !== normalizedPhone,
           whapi_status: response.status,
-          fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
-          expected_result: {
-            rodrigo_bot_sees: "Mensagem ENVIADA (verde) no WhatsApp",
-            seller_sees: "Mensagem RECEBIDA (cinza) no WhatsApp"
-          }
+          fluxo_corrigido: `${senderPhone} → ${normalizedPhone}`
         }
       })
 
@@ -291,14 +373,16 @@ serve(async (req) => {
         success: responseData.sent || response.ok || false,
         message_id: responseData.message?.id,
         from: senderPhone,
-        to: phoneValidation.formatted,
+        to: normalizedPhone,
+        original_to: request.to,
         direction: direction,
         token_used: tokenSecretName,
         whapi_response: responseData,
-        fluxo_corrigido: `${senderPhone} → ${phoneValidation.formatted}`,
+        normalizacao_aplicada: request.to !== normalizedPhone,
+        fluxo_corrigido: `${senderPhone} → ${normalizedPhone}`,
         expected_whatsapp_behavior: {
-          rodrigo_bot_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${phoneValidation.formatted}`,
-          seller_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE ${senderPhone}`
+          sender_whatsapp: `Mensagem aparece como ENVIADA (verde) PARA ${normalizedPhone}`,
+          recipient_whatsapp: `Mensagem aparece como RECEBIDA (cinza) DE ${senderPhone}`
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -319,52 +403,3 @@ serve(async (req) => {
     )
   }
 })
-
-function validatePhoneNumber(phone: string): { isValid: boolean; formatted: string; warnings: string[] } {
-  const warnings: string[] = []
-  let cleaned = phone.replace(/\D/g, '')
-
-  if (!cleaned) {
-    return { isValid: false, formatted: '', warnings: ['Número vazio'] }
-  }
-
-  // Remover zeros à esquerda
-  cleaned = cleaned.replace(/^0+/, '')
-
-  // Verificar se já tem código do país
-  if (!cleaned.startsWith('55')) {
-    if (cleaned.length >= 10 && cleaned.length <= 11) {
-      cleaned = '55' + cleaned
-      warnings.push('Código do país (55) adicionado automaticamente')
-    } else {
-      warnings.push('Número com formato suspeito')
-    }
-  }
-
-  // Validar comprimento final (55 + DDD + número)
-  if (cleaned.length < 12 || cleaned.length > 13) {
-    warnings.push(`Comprimento inválido: ${cleaned.length} dígitos`)
-    return { isValid: false, formatted: cleaned, warnings }
-  }
-
-  // Verificar se é número brasileiro válido
-  if (!cleaned.startsWith('55')) {
-    warnings.push('Não é um número brasileiro')
-    return { isValid: false, formatted: cleaned, warnings }
-  }
-
-  // Verificar DDD válido (11-99)
-  const ddd = cleaned.substring(2, 4)
-  if (parseInt(ddd) < 11 || parseInt(ddd) > 99) {
-    warnings.push(`DDD inválido: ${ddd}`)
-    return { isValid: false, formatted: cleaned, warnings }
-  }
-
-  // Verificar se é número de celular (deve começar com 9)
-  const numberPart = cleaned.substring(4)
-  if (numberPart.length === 9 && !numberPart.startsWith('9')) {
-    warnings.push('Número pode ser fixo - WhatsApp funciona apenas com celulares')
-  }
-
-  return { isValid: true, formatted: cleaned, warnings }
-}
