@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 const corsHeaders = {
@@ -107,6 +108,19 @@ Deno.serve(async (req) => {
       console.error('❌ Rodrigo Bot não configurado:', rodrigoError);
       throw new Error('Rodrigo Bot não está configurado corretamente');
     }
+
+    // Buscar token do Rodrigo Bot dos secrets
+    const { data: tokenData, error: tokenError } = await supabase.functions.invoke('get-secret', {
+      body: { secretName: rodrigoBot.token_secret_name }
+    });
+
+    if (tokenError || !tokenData?.value) {
+      console.error('❌ Token do Rodrigo Bot não encontrado:', tokenError);
+      throw new Error(`Token do Rodrigo Bot não encontrado. Secret: ${rodrigoBot.token_secret_name}`);
+    }
+
+    const rodrigoToken = tokenData.value;
+    console.log(`✅ Token do Rodrigo Bot obtido: ${rodrigoToken.substring(0, 10)}...`);
 
     const transferredConversations = [];
 
@@ -242,14 +256,28 @@ JUSTIFICATIVA: [motivo da escolha]`
 
         console.log(`✅ Vendedor selecionado: ${selectedSeller.name} (${selectedSeller.id})`);
 
-        // 3. Enviar resumo via Rodrigo Bot
-        console.log(`📱 Enviando resumo via Rodrigo Bot para ${selectedSeller.name}...`);
+        // 3. Enviar resumo via Rodrigo Bot - CORRIGIDO: do bot PARA o vendedor
+        console.log(`📱 Enviando resumo via Rodrigo Bot do ${rodrigoBot.phone_number} para ${selectedSeller.name} (${selectedSeller.phone_number})...`);
+        
+        const messageContent = `🎯 *NOVO LEAD RECEBIDO*
+
+*Cliente:* ${conversation.customer_name || 'Cliente'}
+*Telefone:* ${conversation.phone_number}
+*ID da Conversa:* ${conversation.id}
+
+*📋 Resumo do Atendimento:*
+${summary}
+
+---
+_Lead distribuído automaticamente pelo sistema_
+_Responda o cliente o quanto antes_`;
+
         const { data: sendResult, error: sendError } = await supabase.functions.invoke('whapi-send', {
           body: {
-            phone_to: selectedSeller.phone_number,
-            content: summary,
-            message_type: 'text',
-            whapi_config_id: rodrigoBot.id
+            token: rodrigoToken,
+            to: selectedSeller.phone_number,
+            content: messageContent,
+            type: 'text'
           }
         });
 
@@ -258,7 +286,12 @@ JUSTIFICATIVA: [motivo da escolha]`
           continue;
         }
 
-        console.log(`✅ Resumo enviado via WhatsApp para ${selectedSeller.name}`);
+        if (!sendResult?.success) {
+          console.error(`❌ Falha no envio via Rodrigo Bot:`, sendResult);
+          continue;
+        }
+
+        console.log(`✅ Resumo enviado via WhatsApp de ${rodrigoBot.phone_number} para ${selectedSeller.name} (${selectedSeller.phone_number})`);
 
         // 4. Criar lead no banco
         const { data: leadData, error: leadError } = await supabase
@@ -270,7 +303,7 @@ JUSTIFICATIVA: [motivo da escolha]`
             seller_id: selectedSeller.id,
             summary: summary,
             ai_evaluation: matchingResponse,
-            status: 'attending',
+            status: 'sent_to_seller',
             sent_at: new Date().toISOString()
           })
           .select()
@@ -320,7 +353,10 @@ JUSTIFICATIVA: [motivo da escolha]`
             customer_phone: conversation.phone_number,
             summary_length: summary.length,
             matching_justification: matchingResponse,
-            rodrigo_bot_used: rodrigoBot.name
+            rodrigo_bot_phone: rodrigoBot.phone_number,
+            rodrigo_token_used: rodrigoToken.substring(0, 10) + '...',
+            whapi_message_id: sendResult.message_id,
+            corrected_flow: true
           }
         });
 
@@ -328,10 +364,12 @@ JUSTIFICATIVA: [motivo da escolha]`
           conversation_id: conversation.id,
           lead_id: leadData.id,
           seller_id: selectedSeller.id,
-          seller_name: selectedSeller.name
+          seller_name: selectedSeller.name,
+          seller_phone: selectedSeller.phone_number,
+          message_id: sendResult.message_id
         });
 
-        console.log(`🎉 Transferência completa - Conversa ${conversation.id} → ${selectedSeller.name}`);
+        console.log(`🎉 Transferência completa - Conversa ${conversation.id} → ${selectedSeller.name} (${selectedSeller.phone_number})`);
 
       } catch (error) {
         console.error(`❌ Erro ao processar transferência da conversa ${conversation.id}:`, error);
@@ -343,7 +381,8 @@ JUSTIFICATIVA: [motivo da escolha]`
         success: true,
         message: `${transferredConversations.length} conversas transferidas automaticamente`,
         processed: transferredConversations.length,
-        transfers: transferredConversations
+        transfers: transferredConversations,
+        corrected_flow: true
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
