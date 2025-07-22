@@ -58,7 +58,7 @@ serve(async (req) => {
       const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
       
       if (request.token === rodrigoBotToken) {
-        senderPhone = '5551981155622'
+        senderPhone = '555181155622' // Número correto sem o 9 extra
         tokenSecretName = 'WHAPI_TOKEN_5551981155622'
         direction = 'bot_to_seller'
         console.log('🤖 Token identificado como: Rodrigo Bot')
