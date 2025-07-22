@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, Bot, User } from "lucide-react";
 import { useSellers } from "@/hooks/useSellers";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Send, CheckCircle } from "lucide-react";
@@ -43,7 +44,7 @@ export const DeliveryTestPanel = () => {
       setLastTestResult(data);
       toast({
         title: "Teste enviado!",
-        description: `Mensagem de teste enviada para ${data.details.seller_name}`,
+        description: `Mensagem enviada DO Rodrigo Bot PARA ${data.details.recipient}`,
       });
     } catch (error: any) {
       console.error('Erro no teste:', error);
@@ -62,15 +63,24 @@ export const DeliveryTestPanel = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Send className="h-5 w-5" />
-          Teste de Entrega WHAPI
+          Teste de Entrega WHAPI - Fluxo Correto
         </CardTitle>
         <CardDescription>
-          Enviar mensagem de teste para verificar se os vendedores estão recebendo leads
+          <div className="flex items-center gap-2 mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+            <Bot className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-green-800">Rodrigo Bot (51981155622)</span>
+            <ArrowRight className="h-4 w-4 text-green-600" />
+            <User className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-green-800">Vendedor</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            O teste envia mensagem DO número oficial da empresa PARA o vendedor
+          </p>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block">Vendedor</label>
+          <label className="text-sm font-medium mb-2 block">Vendedor (Destinatário)</label>
           <Select value={selectedSeller} onValueChange={setSelectedSeller}>
             <SelectTrigger>
               <SelectValue placeholder="Selecione um vendedor" />
@@ -108,39 +118,65 @@ export const DeliveryTestPanel = () => {
           ) : (
             <>
               <Send className="mr-2 h-4 w-4" />
-              Enviar Teste
+              Enviar Teste (Bot → Vendedor)
             </>
           )}
         </Button>
 
-{lastTestResult && (
+        {lastTestResult && (
           <div className="mt-4 p-4 bg-muted rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-3">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <span className="text-sm font-medium">Último teste realizado</span>
+              <Badge variant={lastTestResult.success ? "default" : "destructive"}>
+                {lastTestResult.success ? "Sucesso" : "Falha"}
+              </Badge>
             </div>
             
             <div className="mb-3">
               <Badge variant="secondary" className="mb-2">
-                Fluxo de mensagem
+                Fluxo de mensagem CORRETO
               </Badge>
               <div className="flex items-center gap-2 px-3 py-2 bg-card rounded-md border">
-                <span className="text-xs font-semibold">Rodrigo Bot</span>
-                <AlertCircle className="h-3 w-3" />
-                <span className="text-xs">→</span>
-                <span className="text-xs font-semibold">{lastTestResult.details?.seller_name}</span>
+                <Bot className="h-4 w-4 text-orange-600" />
+                <span className="text-xs font-semibold text-orange-600">
+                  Rodrigo Bot ({lastTestResult.details?.sender_phone})
+                </span>
+                <ArrowRight className="h-3 w-3 text-green-600" />
+                <User className="h-4 w-4 text-blue-600" />
+                <span className="text-xs font-semibold text-blue-600">
+                  {lastTestResult.details?.recipient} ({lastTestResult.details?.recipient_phone})
+                </span>
               </div>
             </div>
             
             <div className="text-sm space-y-1">
-              <p><strong>Bot Origem:</strong> Rodrigo Bot (número oficial)</p>
-              <p><strong>Destino:</strong> {lastTestResult.details?.seller_name}</p>
-              <p><strong>Número Destino:</strong> {lastTestResult.details?.phone_number}</p>
-              <p><strong>Status:</strong> {lastTestResult.success ? 'Enviado' : 'Falhou'}</p>
+              <p><strong>Remetente:</strong> {lastTestResult.details?.sender} ({lastTestResult.details?.sender_phone})</p>
+              <p><strong>Destinatário:</strong> {lastTestResult.details?.recipient} ({lastTestResult.details?.recipient_phone})</p>
+              <p><strong>Direção:</strong> <Badge variant="outline">{lastTestResult.details?.message_direction}</Badge></p>
+              <p><strong>Token usado:</strong> {lastTestResult.details?.token_used}</p>
               {lastTestResult.details?.send_result?.message_id && (
-                <p><strong>ID Mensagem:</strong> {lastTestResult.details.send_result.message_id}</p>
+                <p><strong>ID da Mensagem:</strong> {lastTestResult.details.send_result.message_id}</p>
               )}
-              <p className="mt-2 text-xs text-muted-foreground">O status será atualizado automaticamente a cada 2 minutos</p>
+            </div>
+
+            {lastTestResult.details?.expected_whatsapp_behavior && (
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">
+                  📱 Como deve aparecer no WhatsApp:
+                </h4>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p><strong>No WhatsApp do Rodrigo Bot:</strong> {lastTestResult.details.expected_whatsapp_behavior.rodrigo_bot_whatsapp}</p>
+                  <p><strong>No WhatsApp do Vendedor:</strong> {lastTestResult.details.expected_whatsapp_behavior.seller_whatsapp}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 p-2 bg-yellow-50 rounded border border-yellow-200">
+              <p className="text-xs text-yellow-800">
+                <AlertCircle className="h-3 w-3 inline mr-1" />
+                Se a mensagem apareceu invertida, verifique se o token WHAPI_TOKEN_5551981155622 está correto
+              </p>
             </div>
           </div>
         )}

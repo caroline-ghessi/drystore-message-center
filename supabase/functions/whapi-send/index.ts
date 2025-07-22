@@ -37,10 +37,58 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const request: WhapiSendRequest = await req.json()
-    console.log('WHAPI Send request:', {
-      token: request.token.substring(0, 10) + '...',
+    
+    // Mascarar token para logs
+    const tokenMasked = request.token.substring(0, 10) + '...'
+    
+    console.log('📨 WHAPI Send request recebido:', {
+      token: tokenMasked,
       to: request.to,
-      content: request.content
+      content: request.content.substring(0, 50) + '...',
+      type: request.type || 'text'
+    })
+
+    // Identificar qual número está enviando baseado no token
+    let senderPhone = 'unknown'
+    let tokenSecretName = 'unknown'
+    let direction = 'unknown'
+
+    // Verificar se é o token do Rodrigo Bot
+    if (request.token.length > 20) { // Validação básica de token WHAPI
+      const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
+      
+      if (request.token === rodrigoBotToken) {
+        senderPhone = '5551981155622'
+        tokenSecretName = 'WHAPI_TOKEN_5551981155622'
+        direction = 'bot_to_seller'
+        console.log('🤖 Token identificado como: Rodrigo Bot')
+      } else {
+        // Pode ser token de vendedor - buscar no banco
+        const { data: whapiConfig } = await supabase
+          .from('whapi_configurations')
+          .select('phone_number, token_secret_name, type')
+          .eq('active', true)
+
+        if (whapiConfig) {
+          for (const config of whapiConfig) {
+            const configToken = Deno.env.get(config.token_secret_name)
+            if (configToken === request.token) {
+              senderPhone = config.phone_number
+              tokenSecretName = config.token_secret_name
+              direction = config.type === 'seller' ? 'seller_to_customer' : 'bot_to_seller'
+              console.log(`👤 Token identificado como: ${config.type} - ${config.phone_number}`)
+              break
+            }
+          }
+        }
+      }
+    }
+
+    console.log('🔍 Identificação do remetente:', {
+      senderPhone,
+      tokenSecretName,
+      direction,
+      tokenMatches: senderPhone !== 'unknown'
     })
 
     // Validar campos obrigatórios
@@ -50,7 +98,7 @@ serve(async (req) => {
 
     // Validação e formatação do número de telefone
     const phoneValidation = validatePhoneNumber(request.to)
-    console.log('Validação do telefone:', phoneValidation)
+    console.log('📱 Validação do telefone:', phoneValidation)
 
     if (!phoneValidation.isValid) {
       throw new Error(`Número de telefone inválido: ${phoneValidation.warnings.join(', ')}`)
@@ -58,7 +106,7 @@ serve(async (req) => {
 
     // Se tem warnings críticos, alertar mas continuar
     if (phoneValidation.warnings.length > 0) {
-      console.warn('Avisos na validação do telefone:', phoneValidation.warnings)
+      console.warn('⚠️ Avisos na validação do telefone:', phoneValidation.warnings)
       
       // Se número não começa com 9 (celular), pode ser problema
       const numberPart = phoneValidation.formatted.substring(4) // Remove 55XX
@@ -117,10 +165,18 @@ serve(async (req) => {
     // URL da API WHAPI com autenticação padronizada
     const url = `https://gate.whapi.cloud/${endpoint}?token=${request.token}`
 
-    console.log('Enviando para WHAPI:', {
+    console.log('📤 Enviando para WHAPI:', {
       url: url.replace(request.token, 'TOKEN_HIDDEN'),
-      payload,
-      phone_validation: phoneValidation
+      payload: {
+        ...payload,
+        body: payload.body?.substring(0, 50) + '...'
+      },
+      phone_validation: phoneValidation,
+      sender_identification: {
+        senderPhone,
+        tokenSecretName,
+        direction
+      }
     })
 
     // Enviar para WHAPI
@@ -133,32 +189,57 @@ serve(async (req) => {
     })
 
     const responseData = await response.json()
-    console.log('Resposta WHAPI:', responseData)
+    console.log('📨 Resposta WHAPI:', {
+      status: response.status,
+      success: response.ok,
+      data: responseData
+    })
 
     if (!response.ok) {
+      console.error('❌ Erro na resposta WHAPI:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: responseData
+      })
       throw new Error(`Erro WHAPI ${response.status}: ${responseData.error || responseData.message || 'Erro desconhecido'}`)
     }
 
-    // Preparar dados para log
+    // Preparar dados para log com informações corretas do remetente
     const logData = {
-      direction: 'sent',
-      phone_from: responseData.message?.from || 'sistema',
-      phone_to: phoneValidation.formatted,
+      direction: direction, // Usar a direção identificada
+      phone_from: senderPhone, // Número que está enviando
+      phone_to: phoneValidation.formatted, // Número que está recebendo
       content: request.content,
       message_type: request.type || 'text',
       media_url: request.media?.url || null,
       whapi_message_id: responseData.message?.id || null,
-      token_used: request.token.substring(0, 10) + '...',
+      token_secret_name: tokenSecretName, // CRÍTICO: incluir o nome do secret
       conversation_id: null,
       seller_id: null,
-      status: responseData.sent ? 'sent' : 'failed',
-      error_message: responseData.sent ? null : 'Falha no envio WHAPI',
+      status: responseData.sent || response.ok ? 'sent' : 'failed',
+      error_message: responseData.sent || response.ok ? null : 'Falha no envio WHAPI',
       metadata: {
         response: responseData,
         original_phone: request.to,
-        phone_validation: phoneValidation
+        phone_validation: phoneValidation,
+        sender_identification: {
+          senderPhone,
+          tokenSecretName,
+          direction,
+          tokenMatched: senderPhone !== 'unknown'
+        },
+        whapi_endpoint: endpoint,
+        whapi_status: response.status
       }
     }
+
+    console.log('💾 Salvando log com dados:', {
+      direction: logData.direction,
+      phone_from: logData.phone_from,
+      phone_to: logData.phone_to,
+      token_secret_name: logData.token_secret_name,
+      status: logData.status
+    })
 
     // Salvar log no banco
     const { error: logError } = await supabase
@@ -166,36 +247,45 @@ serve(async (req) => {
       .insert(logData)
 
     if (logError) {
-      console.error('Erro ao salvar log:', logError)
+      console.error('❌ Erro ao salvar log:', logError)
+    } else {
+      console.log('✅ Log salvo com sucesso')
     }
 
     // Log de sistema para operações importantes
     await supabase
       .from('system_logs')
       .insert({
-        type: responseData.sent ? 'success' : 'error',
+        type: responseData.sent || response.ok ? 'success' : 'error',
         source: 'whapi-send',
-        message: `Mensagem ${responseData.sent ? 'enviada' : 'falhada'} via WHAPI`,
+        message: `Mensagem ${responseData.sent || response.ok ? 'enviada' : 'falhada'} via WHAPI`,
         details: {
+          from: senderPhone,
           to: phoneValidation.formatted,
+          direction: direction,
+          token_secret_name: tokenSecretName,
           message_id: responseData.message?.id,
-          success: responseData.sent,
-          warnings: phoneValidation.warnings
+          success: responseData.sent || response.ok,
+          warnings: phoneValidation.warnings,
+          whapi_status: response.status
         }
       })
 
     return new Response(
       JSON.stringify({
-        success: responseData.sent || false,
+        success: responseData.sent || response.ok || false,
         message_id: responseData.message?.id,
+        from: senderPhone,
         to: phoneValidation.formatted,
+        direction: direction,
+        token_used: tokenSecretName,
         whapi_response: responseData
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Erro no envio WHAPI:', error)
+    console.error('❌ Erro no envio WHAPI:', error)
 
     return new Response(
       JSON.stringify({
