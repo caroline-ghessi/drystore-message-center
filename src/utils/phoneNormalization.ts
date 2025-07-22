@@ -105,7 +105,7 @@ export function validateBrazilianPhone(phone: string): {
   } else if (numberPart.length === 8 && !numberPart.startsWith('9')) {
     // Pode ser celular formato antigo ou fixo
     type = parseInt(numberPart.substring(0, 1)) >= 6 ? 'mobile' : 'landline';
-  } else if (numberPart.length === 8 && numberPart.startsWith('2', 3, 4, 5)) {
+  } else if (numberPart.length === 8 && ['2', '3', '4', '5'].includes(numberPart.charAt(0))) {
     type = 'landline';
   }
   
