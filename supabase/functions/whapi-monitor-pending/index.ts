@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+console.log("🤖 WHAPI Monitor de mensagens pendentes inicializado")
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -21,6 +23,7 @@ serve(async (req) => {
     // Buscar mensagens pendentes há mais de 30 segundos
     const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString()
     
+    // Obter mensagens enviadas ou pendentes que precisam de verificação
     const { data: pendingMessages, error: fetchError } = await supabase
       .from('whapi_logs')
       .select(`
@@ -28,11 +31,12 @@ serve(async (req) => {
         whapi_message_id,
         token_used,
         phone_to,
+        phone_from,
         status,
         created_at,
         sellers!inner(name, phone_number)
       `)
-      .eq('status', 'sent')
+      .in('status', ['sent', 'pending'])  // Verificar tanto mensagens enviadas quanto pendentes
       .lt('created_at', thirtySecondsAgo)
       .not('whapi_message_id', 'is', null)
 

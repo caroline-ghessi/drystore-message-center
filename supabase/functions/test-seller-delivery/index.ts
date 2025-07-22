@@ -85,9 +85,13 @@ serve(async (req) => {
         success: true,
         message: `Teste enviado para ${seller.name}`,
         details: {
+          sender: "Rodrigo Bot",
+          sender_phone: "5551981155622",
           seller_name: seller.name,
           phone_number: seller.phone_number,
-          send_result: sendResult
+          send_result: sendResult,
+          message_direction: "rodrigo_bot_to_seller",
+          timestamp: new Date().toISOString()
         }
       }),
       { 

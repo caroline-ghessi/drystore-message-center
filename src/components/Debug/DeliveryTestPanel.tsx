@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { AlertCircle } from "lucide-react";
 import { useSellers } from "@/hooks/useSellers";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Send, CheckCircle } from "lucide-react";
@@ -111,16 +113,34 @@ export const DeliveryTestPanel = () => {
           )}
         </Button>
 
-        {lastTestResult && (
+{lastTestResult && (
           <div className="mt-4 p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <span className="text-sm font-medium">Último teste realizado</span>
             </div>
+            
+            <div className="mb-3">
+              <Badge variant="secondary" className="mb-2">
+                Fluxo de mensagem
+              </Badge>
+              <div className="flex items-center gap-2 px-3 py-2 bg-card rounded-md border">
+                <span className="text-xs font-semibold">Rodrigo Bot</span>
+                <AlertCircle className="h-3 w-3" />
+                <span className="text-xs">→</span>
+                <span className="text-xs font-semibold">{lastTestResult.details?.seller_name}</span>
+              </div>
+            </div>
+            
             <div className="text-sm space-y-1">
-              <p><strong>Vendedor:</strong> {lastTestResult.details?.seller_name}</p>
-              <p><strong>Número:</strong> {lastTestResult.details?.phone_number}</p>
+              <p><strong>Bot Origem:</strong> Rodrigo Bot (número oficial)</p>
+              <p><strong>Destino:</strong> {lastTestResult.details?.seller_name}</p>
+              <p><strong>Número Destino:</strong> {lastTestResult.details?.phone_number}</p>
               <p><strong>Status:</strong> {lastTestResult.success ? 'Enviado' : 'Falhou'}</p>
+              {lastTestResult.details?.send_result?.message_id && (
+                <p><strong>ID Mensagem:</strong> {lastTestResult.details.send_result.message_id}</p>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">O status será atualizado automaticamente a cada 2 minutos</p>
             </div>
           </div>
         )}
