@@ -12,6 +12,7 @@ import { MessageDeliveryMonitor } from "@/components/Debug/MessageDeliveryMonito
 import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 import { DeliveryTestPanel } from "@/components/Debug/DeliveryTestPanel";
 import { DeliveryMonitorPanel } from "@/components/Debug/DeliveryMonitorPanel";
+import { WhapiSystemDiagnostic } from "@/components/Debug/WhapiSystemDiagnostic";
 
 export default function Debug() {
   return (
@@ -21,8 +22,9 @@ export default function Debug() {
         <Badge variant="secondary">Ambiente de Desenvolvimento</Badge>
       </div>
 
-      <Tabs defaultValue="whatsapp" className="w-full">
-        <TabsList className="grid w-full grid-cols-9">
+      <Tabs defaultValue="diagnostic" className="w-full">
+        <TabsList className="grid w-full grid-cols-10">
+          <TabsTrigger value="diagnostic">Diagnóstico</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify</TabsTrigger>
           <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
@@ -33,6 +35,10 @@ export default function Debug() {
           <TabsTrigger value="delivery-monitor">Monitor</TabsTrigger>
           <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="diagnostic" className="space-y-6">
+          <WhapiSystemDiagnostic />
+        </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-6">
           <WhatsAppTester />

@@ -857,6 +857,7 @@ export type Database = {
           phone_to: string
           seller_id: string | null
           status: string | null
+          token_secret_name: string | null
           token_used: string | null
           whapi_message_id: string | null
         }
@@ -874,6 +875,7 @@ export type Database = {
           phone_to: string
           seller_id?: string | null
           status?: string | null
+          token_secret_name?: string | null
           token_used?: string | null
           whapi_message_id?: string | null
         }
@@ -891,6 +893,7 @@ export type Database = {
           phone_to?: string
           seller_id?: string | null
           status?: string | null
+          token_secret_name?: string | null
           token_used?: string | null
           whapi_message_id?: string | null
         }

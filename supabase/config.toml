@@ -26,3 +26,21 @@ verify_jwt = false
 
 [functions.intelligent-transfer-orchestrator]
 verify_jwt = false
+
+[functions.validate-whapi-token]
+verify_jwt = false
+
+[functions.diagnose-whapi-system]
+verify_jwt = false
+
+[functions.send-lead-to-seller]
+verify_jwt = false
+
+[functions.send-alert-to-managers]
+verify_jwt = false
+
+[functions.test-seller-delivery]
+verify_jwt = false
+
+[functions.get-secret]
+verify_jwt = false
