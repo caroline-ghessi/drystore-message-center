@@ -461,11 +461,31 @@ _Alerta automático do sistema de monitoramento_`;
    * Helpers privados
    */
   private formatPhoneNumber(phone: string): string {
+    // Remove caracteres não numéricos
     const cleaned = phone.replace(/\D/g, '');
-    if (!cleaned.startsWith('55')) {
+    
+    // Validação de número brasileiro
+    if (cleaned.length < 10 || cleaned.length > 13) {
+      throw new Error(`Número de telefone inválido: ${phone}`);
+    }
+    
+    // Se já começa com 55, retorna como está
+    if (cleaned.startsWith('55')) {
+      return cleaned;
+    }
+    
+    // Se começa com 0, remove o 0 e adiciona 55
+    if (cleaned.startsWith('0')) {
+      return `55${cleaned.substring(1)}`;
+    }
+    
+    // Se tem 10 ou 11 dígitos (formato brasileiro sem código do país), adiciona 55
+    if (cleaned.length >= 10 && cleaned.length <= 11) {
       return `55${cleaned}`;
     }
-    return cleaned;
+    
+    // Para outros casos, assume que precisa do código do país
+    return `55${cleaned}`;
   }
 
   private formatLeadMessage(summary: string, customerName: string, phone: string): string {
