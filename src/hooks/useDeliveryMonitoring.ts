@@ -81,7 +81,7 @@ export const useDeliveryMonitoring = () => {
     try {
       let checkedCount = 0;
       const pendingMessages = pendingDeliveries.filter(d => 
-        d.status === 'pending' || d.status === 'sent'
+        d.status === 'pending'
       );
 
       for (const delivery of pendingMessages) {
@@ -218,7 +218,7 @@ export const useDeliveryMonitoring = () => {
   // Estatísticas de entrega
   const deliveryStats = {
     total: pendingDeliveries.length,
-    pending: pendingDeliveries.filter(d => d.status === 'pending' || d.status === 'sent').length,
+    pending: pendingDeliveries.filter(d => d.status === 'pending').length,
     delivered: pendingDeliveries.filter(d => d.status === 'delivered').length,
     failed: pendingDeliveries.filter(d => d.status === 'failed').length,
     read: pendingDeliveries.filter(d => d.status === 'read').length,
