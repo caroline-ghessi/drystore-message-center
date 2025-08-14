@@ -146,6 +146,11 @@ async function processMessage(supabase: any, message: WhapiMessage, sellerId?: s
     let sellerFrom = null;
     let sellerTo = null;
 
+    // Normalizar números de telefone (remover formatação)
+    const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+    const messageFromNormalized = normalizePhone(message.from);
+    const messageToNormalized = normalizePhone(message.to);
+
     // Se temos seller_id específico, usar ele diretamente
     if (sellerId) {
       const { data: specificSeller } = await supabase
@@ -155,28 +160,45 @@ async function processMessage(supabase: any, message: WhapiMessage, sellerId?: s
         .single()
       
       if (specificSeller) {
-        if (message.from === specificSeller.phone_number) {
+        const sellerPhoneNormalized = normalizePhone(specificSeller.phone_number);
+        
+        if (messageFromNormalized === sellerPhoneNormalized || 
+            messageFromNormalized.endsWith(sellerPhoneNormalized) ||
+            sellerPhoneNormalized.endsWith(messageFromNormalized)) {
           sellerFrom = specificSeller;
-        } else if (message.to === specificSeller.phone_number) {
+        } else if (messageToNormalized === sellerPhoneNormalized ||
+                   messageToNormalized.endsWith(sellerPhoneNormalized) ||
+                   sellerPhoneNormalized.endsWith(messageToNormalized)) {
           sellerTo = specificSeller;
         }
       }
     } else {
-      // Verificar se é mensagem de vendedor (pelo número FROM)
-      const { data: sellerFromData } = await supabase
+      // Buscar vendedor por número - com normalização flexível
+      const { data: allSellers } = await supabase
         .from('sellers')
         .select('id, name, phone_number')
-        .eq('phone_number', message.from)
-        .single()
-      sellerFrom = sellerFromData;
+        .eq('active', true)
+        .eq('deleted', false)
 
-      // Verificar se é mensagem para vendedor (pelo número TO)
-      const { data: sellerToData } = await supabase
-        .from('sellers')
-        .select('id, name, phone_number')
-        .eq('phone_number', message.to)
-        .single()
-      sellerTo = sellerToData;
+      for (const seller of allSellers || []) {
+        const sellerPhoneNormalized = normalizePhone(seller.phone_number);
+        
+        // Verificar se mensagem é DO vendedor
+        if (messageFromNormalized === sellerPhoneNormalized || 
+            messageFromNormalized.endsWith(sellerPhoneNormalized) ||
+            sellerPhoneNormalized.endsWith(messageFromNormalized)) {
+          sellerFrom = seller;
+          break;
+        }
+        
+        // Verificar se mensagem é PARA o vendedor
+        if (messageToNormalized === sellerPhoneNormalized ||
+            messageToNormalized.endsWith(sellerPhoneNormalized) ||
+            sellerPhoneNormalized.endsWith(messageToNormalized)) {
+          sellerTo = seller;
+          break;
+        }
+      }
     }
 
     if (sellerFrom) {
@@ -227,27 +249,42 @@ async function processMessage(supabase: any, message: WhapiMessage, sellerId?: s
 async function processSellerToCustomerMessage(supabase: any, seller: any, message: WhapiMessage) {
   console.log(`Mensagem do vendedor ${seller.name} para cliente ${message.to}`)
 
-  // Buscar lead ativo do vendedor com este cliente
-  const { data: lead } = await supabase
+  // Normalizar número do cliente
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+  const clientPhoneNormalized = normalizePhone(message.to);
+
+  // Buscar lead ativo do vendedor com este cliente (busca flexível por telefone)
+  const { data: leads } = await supabase
     .from('leads')
     .select('*')
     .eq('seller_id', seller.id)
-    .eq('phone_number', message.to)
     .in('status', ['attending', 'sent_to_seller'])
     .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  if (lead) {
+  let matchingLead = null;
+  
+  // Encontrar lead que corresponde ao número (com normalização)
+  for (const lead of leads || []) {
+    const leadPhoneNormalized = normalizePhone(lead.phone_number);
+    if (leadPhoneNormalized === clientPhoneNormalized ||
+        leadPhoneNormalized.endsWith(clientPhoneNormalized) ||
+        clientPhoneNormalized.endsWith(leadPhoneNormalized)) {
+      matchingLead = lead;
+      break;
+    }
+  }
+
+  if (matchingLead) {
     // Salvar mensagem na conversa
     await supabase.from('messages').insert({
-      conversation_id: lead.conversation_id,
+      conversation_id: matchingLead.conversation_id,
       sender_type: 'seller',
       sender_name: seller.name,
       content: message.body || '',
       message_type: message.type,
       media_url: message.media?.url,
       message_source: 'whapi',
+      whatsapp_message_id: message.id,
       metadata: {
         whapi_message_id: message.id,
         seller_id: seller.id,
@@ -255,57 +292,110 @@ async function processSellerToCustomerMessage(supabase: any, seller: any, messag
       }
     })
 
-    // Atualizar timestamp do lead
+    // Atualizar timestamp do lead e conversa
     await supabase
       .from('leads')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', lead.id)
+      .eq('id', matchingLead.id)
 
-    console.log('Mensagem do vendedor salva na conversa:', lead.conversation_id)
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', matchingLead.conversation_id)
+
+    console.log('Mensagem do vendedor salva na conversa:', matchingLead.conversation_id)
   } else {
     console.log('Lead não encontrado para vendedor e cliente:', seller.id, message.to)
+    
+    // Log para debugging
+    await supabase.from('system_logs').insert({
+      type: 'warning',
+      source: 'whapi-webhook',
+      message: 'Mensagem de vendedor sem lead correspondente',
+      details: {
+        seller_id: seller.id,
+        seller_name: seller.name,
+        customer_phone: message.to,
+        message_id: message.id,
+        available_leads: leads?.length || 0
+      }
+    })
   }
 }
 
 async function processCustomerToSellerMessage(supabase: any, seller: any, message: WhapiMessage) {
   console.log(`Mensagem do cliente ${message.from} para vendedor ${seller.name}`)
 
-  // Buscar lead ativo do vendedor com este cliente
-  const { data: lead } = await supabase
+  // Normalizar número do cliente
+  const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+  const clientPhoneNormalized = normalizePhone(message.from);
+
+  // Buscar lead ativo do vendedor com este cliente (busca flexível por telefone)
+  const { data: leads } = await supabase
     .from('leads')
     .select('*')
     .eq('seller_id', seller.id)
-    .eq('phone_number', message.from)
     .in('status', ['attending', 'sent_to_seller'])
     .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  if (lead) {
+  let matchingLead = null;
+  
+  // Encontrar lead que corresponde ao número (com normalização)
+  for (const lead of leads || []) {
+    const leadPhoneNormalized = normalizePhone(lead.phone_number);
+    if (leadPhoneNormalized === clientPhoneNormalized ||
+        leadPhoneNormalized.endsWith(clientPhoneNormalized) ||
+        clientPhoneNormalized.endsWith(leadPhoneNormalized)) {
+      matchingLead = lead;
+      break;
+    }
+  }
+
+  if (matchingLead) {
     // Salvar mensagem na conversa
     await supabase.from('messages').insert({
-      conversation_id: lead.conversation_id,
+      conversation_id: matchingLead.conversation_id,
       sender_type: 'customer',
-      sender_name: lead.customer_name,
+      sender_name: matchingLead.customer_name,
       content: message.body || '',
       message_type: message.type,
       media_url: message.media?.url,
       message_source: 'whapi',
+      whatsapp_message_id: message.id,
       metadata: {
         whapi_message_id: message.id,
         from_phone: message.from
       }
     })
 
-    // Atualizar timestamp do lead
+    // Atualizar timestamp do lead e conversa
     await supabase
       .from('leads')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', lead.id)
+      .eq('id', matchingLead.id)
 
-    console.log('Mensagem do cliente salva na conversa:', lead.conversation_id)
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', matchingLead.conversation_id)
+
+    console.log('Mensagem do cliente salva na conversa:', matchingLead.conversation_id)
   } else {
     console.log('Lead não encontrado para cliente e vendedor:', message.from, seller.id)
+    
+    // Log para debugging
+    await supabase.from('system_logs').insert({
+      type: 'warning',
+      source: 'whapi-webhook',
+      message: 'Mensagem de cliente sem lead correspondente',
+      details: {
+        seller_id: seller.id,
+        seller_name: seller.name,
+        customer_phone: message.from,
+        message_id: message.id,
+        available_leads: leads?.length || 0
+      }
+    })
   }
 }
 

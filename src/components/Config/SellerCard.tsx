@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateSeller } from "@/hooks/useSellers";
 import { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 type Seller = Tables<"sellers">;
 
@@ -77,7 +78,7 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
   };
 
   const copyWebhookUrl = () => {
-    const webhookUrl = seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`;
+    const webhookUrl = seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook?seller_id=${seller.id}`;
     navigator.clipboard.writeText(webhookUrl);
     toast({
       title: "URL copiada!",
@@ -97,31 +98,27 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
 
     setIsTesting(true);
     try {
-      const success = await onTestIntegration(seller.id, token);
-      
-      if (success) {
-        await updateSeller.mutateAsync({
-          id: seller.id,
-          whapi_status: 'connected',
-          whapi_last_test: new Date().toISOString(),
-          whapi_token: token
-        });
+      // Chamar a função para configurar o webhook automaticamente
+      const { data, error } = await supabase.functions.invoke('configure-seller-webhook', {
+        body: {
+          sellerId: seller.id,
+          whapiToken: token
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao configurar webhook');
+      }
+
+      if (data.success) {
         toast({
-          title: "Integração testada com sucesso!",
-          description: "A conexão com a WHAPI está funcionando corretamente.",
+          title: "Webhook configurado com sucesso!",
+          description: "O vendedor está conectado e pronto para receber mensagens.",
         });
+        setIsConfigOpen(false);
+        setToken("");
       } else {
-        await updateSeller.mutateAsync({
-          id: seller.id,
-          whapi_status: 'error',
-          whapi_last_test: new Date().toISOString(),
-          whapi_error_message: 'Falha na conexão com WHAPI'
-        });
-        toast({
-          title: "Falha no teste",
-          description: "Não foi possível conectar com a WHAPI. Verifique o token.",
-          variant: "destructive",
-        });
+        throw new Error(data.error || 'Falha na configuração');
       }
     } catch (error) {
       await updateSeller.mutateAsync({
@@ -131,8 +128,8 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
         whapi_error_message: error instanceof Error ? error.message : 'Erro desconhecido'
       });
       toast({
-        title: "Erro no teste",
-        description: "Ocorreu um erro ao testar a integração.",
+        title: "Erro na configuração",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao configurar a integração.",
         variant: "destructive",
       });
     } finally {
@@ -225,7 +222,7 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
           </p>
           <div className="flex items-center space-x-2">
             <code className="text-xs bg-muted p-1 rounded flex-1 truncate">
-              {seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`}
+              {seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook?seller_id=${seller.id}`}
             </code>
             <Button 
               size="sm" 
@@ -277,7 +274,7 @@ export default function SellerCard({ seller, onDelete, onTestIntegration }: Sell
                   <div className="flex items-center space-x-2 mt-1">
                     <Input
                       id="webhook"
-                      value={seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook/${seller.id}`}
+                      value={seller.whapi_webhook_url || `https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/whapi-webhook?seller_id=${seller.id}`}
                       readOnly
                       className="flex-1"
                     />
