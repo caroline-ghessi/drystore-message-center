@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAIAgents } from "@/hooks/useAIAgents";
+import { useOwnerInsights } from "@/hooks/useOwnerInsights";
+import { toast } from "sonner";
 import { 
   Brain, 
   BarChart3, 
@@ -22,12 +23,12 @@ interface ChatMessage {
 }
 
 export default function VisaoDono() {
-  const { getOwnerInsightsPrompt } = useAIAgents();
+  const { data: insightsData, isLoading: dataLoading, askQuestion } = useOwnerInsights();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Olá! Sou seu assistente de análise estratégica. Como posso ajudar você hoje? Posso fornecer insights sobre performance de vendedores, qualidade dos leads, tendências de atendimento e muito mais.',
+      content: 'Olá! Sou seu assistente de análise estratégica com dados reais do sistema. Como posso ajudar você hoje? Posso fornecer insights sobre performance de vendedores, qualidade dos leads, tendências de atendimento e muito mais.',
       timestamp: new Date().toISOString()
     }
   ]);
@@ -58,44 +59,35 @@ export default function VisaoDono() {
     setNewMessage('');
     setIsLoading(true);
     
-    // Simula processamento da IA
-    setTimeout(() => {
+    try {
+      // Usar agente IA real com dados do sistema
+      const response = await askQuestion(content);
+      
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: generateResponse(content),
+        content: response,
         timestamp: new Date().toISOString()
       };
       
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Erro ao processar pergunta:', error);
+      toast.error('Erro ao processar pergunta. Tente novamente.');
+      
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Desculpe, houve um erro ao processar sua pergunta. Tente novamente em alguns momentos.',
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
-  const generateResponse = (question: string) => {
-    // Usa o prompt configurável se disponível
-    const systemPrompt = getOwnerInsightsPrompt();
-    
-    // Simula uma resposta baseada no prompt personalizado
-    const responses: Record<string, string> = {
-      'negociações': `Seguindo o contexto: "${systemPrompt.substring(0, 50)}..." - Atualmente temos 15 negociações em andamento: 5 com alto potencial (>R$ 50k), 7 médias (R$ 20k-50k) e 3 pequenas (<R$ 20k). Destaque para João Silva (R$ 80k - telhas shingle) e Maria Santos (R$ 65k - sistema completo de secagem).`,
-      'performance': 'Carlos Silva lidera esta semana com 12 leads atendidos, taxa de conversão de 67% e R$ 180k em vendas. Ana Santos está em segundo com 60% de conversão e R$ 145k em vendas.',
-      'objeções': 'Principais objeções: 1) Preço alto (34%), 2) Prazo de entrega (23%), 3) Dúvidas sobre qualidade (18%), 4) Concorrência (15%). Recomendo treinamento sobre ROI para vendedores.',
-      'vendas': 'Vendas via WhatsApp este mês: R$ 850k (65% do total). Crescimento de 28% vs mês anterior. Conversão média: 23% (acima da meta de 20%).',
-      'tempo': 'Tempo médio de resposta: 8 minutos. Carlos: 5min, Ana: 7min, João: 12min, Maria: 15min. Recomendo meta de 5min para todos.',
-      'potencial': 'Leads com alto potencial: 1) Pedro Costa (farmacêutica, R$ 120k), 2) Ana Oliveira (indústria, R$ 95k), 3) João Santos (startup, R$ 75k). Recomendar follow-up prioritário.'
-    };
-    
-    const lowercaseQuestion = question.toLowerCase();
-    
-    for (const [key, response] of Object.entries(responses)) {
-      if (lowercaseQuestion.includes(key)) {
-        return response;
-      }
-    }
-    
-    return `${systemPrompt} - Baseado nos dados atuais, posso analisar essa informação para você. Poderia ser mais específico sobre qual aspecto do negócio você gostaria de analisar?`;
-  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -133,7 +125,9 @@ export default function VisaoDono() {
                 <MessageSquare className="h-4 w-4 text-drystore-info" />
                 <span className="text-sm">Mensagens</span>
               </div>
-              <span className="font-bold">127</span>
+              <span className="font-bold">
+                {dataLoading ? '...' : insightsData?.metrics.messagesToday || 0}
+              </span>
             </div>
             
             <div className="flex items-center justify-between">
@@ -141,7 +135,9 @@ export default function VisaoDono() {
                 <Users className="h-4 w-4 text-drystore-success" />
                 <span className="text-sm">Leads</span>
               </div>
-              <span className="font-bold">18</span>
+              <span className="font-bold">
+                {dataLoading ? '...' : insightsData?.metrics.leadsGenerated || 0}
+              </span>
             </div>
             
             <div className="flex items-center justify-between">
@@ -149,7 +145,9 @@ export default function VisaoDono() {
                 <TrendingUp className="h-4 w-4 text-drystore-warning" />
                 <span className="text-sm">Conversões</span>
               </div>
-              <span className="font-bold">23%</span>
+              <span className="font-bold">
+                {dataLoading ? '...' : `${Math.round(insightsData?.metrics.conversionRate || 0)}%`}
+              </span>
             </div>
             
             <div className="flex items-center justify-between">
@@ -157,7 +155,9 @@ export default function VisaoDono() {
                 <Target className="h-4 w-4 text-drystore-error" />
                 <span className="text-sm">Vendas</span>
               </div>
-              <span className="font-bold">R$ 45k</span>
+              <span className="font-bold">
+                {dataLoading ? '...' : `R$ ${((insightsData?.metrics.totalRevenue || 0) / 1000).toFixed(0)}k`}
+              </span>
             </div>
           </CardContent>
         </Card>
