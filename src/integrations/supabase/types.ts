@@ -776,6 +776,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_registrations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          email: string
+          id: string
+          metadata: Json | null
+          requested_at: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
+          status: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          email: string
+          id?: string
+          metadata?: Json | null
+          requested_at?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+          status?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          email?: string
+          id?: string
+          metadata?: Json | null
+          requested_at?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1040,6 +1073,10 @@ export type Database = {
       }
     }
     Functions: {
+      approve_user_access: {
+        Args: { approve?: boolean; registration_id_param: string }
+        Returns: boolean
+      }
       can_access_customer_data: {
         Args: { user_uuid?: string }
         Returns: boolean
@@ -1047,6 +1084,10 @@ export type Database = {
       can_access_seller_data: {
         Args: { target_seller_id: string; user_uuid: string }
         Returns: boolean
+      }
+      cleanup_old_data: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       get_dashboard_stats: {
         Args: Record<PropertyKey, never>
@@ -1089,6 +1130,13 @@ export type Database = {
       process_message_queue: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      request_user_access: {
+        Args: {
+          requested_role_param?: Database["public"]["Enums"]["app_role"]
+          user_email: string
+        }
+        Returns: string
       }
     }
     Enums: {
