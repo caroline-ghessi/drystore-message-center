@@ -6,6 +6,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rate limiting store (in-memory for simplicity)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+
+function checkRateLimit(ip: string, limit: number = 100, windowMs: number = 60000): boolean {
+  const now = Date.now()
+  const key = `${ip}_${Math.floor(now / windowMs)}`
+  
+  const current = rateLimitStore.get(key) || { count: 0, resetTime: now + windowMs }
+  
+  if (current.count >= limit) {
+    return false
+  }
+  
+  current.count++
+  rateLimitStore.set(key, current)
+  
+  // Cleanup old entries
+  for (const [k, v] of rateLimitStore.entries()) {
+    if (v.resetTime < now) {
+      rateLimitStore.delete(k)
+    }
+  }
+  
+  return true
+}
+
 interface WhapiMessage {
   id: string;
   from: string;
@@ -35,6 +61,15 @@ interface WhapiWebhook {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
+  }
+
+  // Rate limiting
+  const clientIp = req.headers.get('x-forwarded-for') || 'unknown'
+  if (!checkRateLimit(clientIp, 100, 60000)) {
+    return new Response('Rate limit exceeded', { 
+      status: 429, 
+      headers: corsHeaders 
+    });
   }
 
   try {

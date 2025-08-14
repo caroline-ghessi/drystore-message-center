@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       client_types: {
         Row: {
           active: boolean | null
@@ -1007,6 +1040,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_customer_data: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
       can_access_seller_data: {
         Args: { target_seller_id: string; user_uuid: string }
         Returns: boolean
@@ -1031,12 +1068,23 @@ export type Database = {
         Args: { user_uuid?: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_role_safe: {
+        Args: { user_uuid?: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       has_role: {
         Args: {
           required_role: Database["public"]["Enums"]["app_role"]
           user_uuid: string
         }
         Returns: boolean
+      }
+      mask_phone_number: {
+        Args: {
+          phone: string
+          user_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
       }
       process_message_queue: {
         Args: Record<PropertyKey, never>
