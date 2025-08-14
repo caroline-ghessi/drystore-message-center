@@ -743,6 +743,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           body: Json | null
@@ -986,6 +1007,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_seller_data: {
+        Args: { target_seller_id: string; user_uuid: string }
+        Returns: boolean
+      }
       get_dashboard_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
@@ -1002,13 +1027,24 @@ export type Database = {
           total_messages: number
         }[]
       }
+      get_user_role: {
+        Args: { user_uuid?: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          required_role: Database["public"]["Enums"]["app_role"]
+          user_uuid: string
+        }
+        Returns: boolean
+      }
       process_message_queue: {
         Args: Record<PropertyKey, never>
         Returns: number
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "operator" | "seller"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1135,6 +1171,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "operator", "seller"],
+    },
   },
 } as const
