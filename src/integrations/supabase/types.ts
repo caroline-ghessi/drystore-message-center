@@ -1077,6 +1077,17 @@ export type Database = {
         Args: { approve?: boolean; registration_id_param: string }
         Returns: boolean
       }
+      audit_access_attempt: {
+        Args: {
+          approval_status_param: string
+          email_param: string
+          has_access_param: boolean
+          roles_param: string[]
+          timestamp_param: string
+          user_id_param: string
+        }
+        Returns: undefined
+      }
       can_access_customer_data: {
         Args: { user_uuid?: string }
         Returns: boolean

@@ -77,7 +77,8 @@ export const ProtectedRoute = ({
 
   // User exists but doesn't have access - show access denied
   if (!hasAccess) {
-    return <AccessDenied approvalStatus={approvalStatus} userEmail={user.email} />;
+    const deniedStatus = approvalStatus === 'approved' ? 'none' : approvalStatus;
+    return <AccessDenied approvalStatus={deniedStatus} userEmail={user.email} />;
   }
 
   // Role-based access control
