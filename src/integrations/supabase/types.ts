@@ -1243,6 +1243,10 @@ export type Database = {
         Args: { target_seller_id: string; user_uuid: string }
         Returns: boolean
       }
+      can_access_unassigned_conversations: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
       cleanup_old_data: {
         Args: Record<PropertyKey, never>
         Returns: number
