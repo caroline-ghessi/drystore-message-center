@@ -1111,6 +1111,7 @@ export type Database = {
     Views: {
       conversations_with_last_message: {
         Row: {
+          assigned_operator_id: string | null
           assigned_seller_id: string | null
           created_at: string | null
           customer_name: string | null
@@ -1226,6 +1227,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      audit_sensitive_data_access: {
+        Args: {
+          accessed_fields: string[]
+          record_id_param: string
+          table_name_param: string
+        }
+        Returns: undefined
+      }
       can_access_customer_data: {
         Args: { user_uuid?: string }
         Returns: boolean
@@ -1241,6 +1250,10 @@ export type Database = {
       get_dashboard_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_masked_phone: {
+        Args: { phone_number: string }
+        Returns: string
       }
       get_seller_conversations: {
         Args: { seller_uuid: string }

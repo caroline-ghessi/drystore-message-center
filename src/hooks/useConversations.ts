@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 export interface Conversation {
   id: string;
-  phone_number: string;
+  phone_number: string; // Now automatically masked based on user role
   customer_name: string;
   status: 'bot_attending' | 'waiting_evaluation' | 'sent_to_seller' | 'finished' | 'fallback_active';
   last_message: string;
@@ -13,6 +13,7 @@ export interface Conversation {
   fallback_mode: boolean;
   fallback_taken_by?: string;
   assigned_seller_id?: string;
+  assigned_operator_id?: string; // New field for operator assignment
   seller_name?: string;
   total_messages: number;
   created_at: string;
@@ -23,6 +24,7 @@ export const useConversations = (searchTerm?: string) => {
   const query = useQuery({
     queryKey: ['conversations', searchTerm],
     queryFn: async () => {
+      // Now uses the secure view with automatic phone masking based on user role
       let query = supabase
         .from('conversations_with_last_message')
         .select('*')
@@ -50,6 +52,7 @@ export const useConversations = (searchTerm?: string) => {
         fallback_mode: conv.fallback_mode || false,
         fallback_taken_by: conv.fallback_taken_by,
         assigned_seller_id: conv.assigned_seller_id,
+        assigned_operator_id: conv.assigned_operator_id, // New field for operator assignment
         seller_name: conv.seller_name,
         total_messages: conv.total_messages || 0,
         created_at: conv.created_at || new Date().toISOString(),

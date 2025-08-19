@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MessageBubble, MessageType, SenderType } from "./MessageBubble";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { OperatorAssignmentPanel } from "@/components/Security/OperatorAssignmentPanel";
 import { Send } from "lucide-react";
 
 interface Message {
@@ -22,6 +23,9 @@ interface MessagePanelProps {
   canSendMessage?: boolean;
   onSendMessage?: (message: string) => void;
   className?: string;
+  customerName?: string;
+  assignedOperatorId?: string;
+  onAssignmentChange?: () => void;
 }
 
 export function MessagePanel({ 
@@ -29,7 +33,10 @@ export function MessagePanel({
   messages, 
   canSendMessage = false,
   onSendMessage,
-  className 
+  className,
+  customerName,
+  assignedOperatorId,
+  onAssignmentChange
 }: MessagePanelProps) {
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,6 +65,18 @@ export function MessagePanel({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
+      {/* Security Assignment Panel */}
+      {customerName && (
+        <div className="p-4 border-b bg-muted/20">
+          <OperatorAssignmentPanel
+            conversationId={conversation_id}
+            currentOperatorId={assignedOperatorId}
+            customerName={customerName}
+            onAssignmentChange={onAssignmentChange}
+          />
+        </div>
+      )}
+      
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {messages.length === 0 ? (
