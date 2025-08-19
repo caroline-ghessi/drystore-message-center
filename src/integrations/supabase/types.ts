@@ -82,6 +82,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assigned_operator_id: string | null
           assigned_seller_id: string | null
           created_at: string | null
           customer_name: string | null
@@ -94,6 +95,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          assigned_operator_id?: string | null
           assigned_seller_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -106,6 +108,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          assigned_operator_id?: string | null
           assigned_seller_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -133,6 +136,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conversations_assigned_seller_id_fkey"
+            columns: ["assigned_seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conversations_fallback_taken_by_fkey"
             columns: ["fallback_taken_by"]
             isOneToOne: false
@@ -140,6 +150,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      data_access_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          record_id: string | null
+          sensitive_fields: string[] | null
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          record_id?: string | null
+          sensitive_fields?: string[] | null
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          record_id?: string | null
+          sensitive_fields?: string[] | null
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
       }
       integrations: {
         Row: {
@@ -247,6 +287,13 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
             referencedColumns: ["id"]
           },
         ]
@@ -494,6 +541,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quality_analyses_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       seller_performance_metrics: {
@@ -545,6 +599,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "seller_performance_metrics_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       seller_skills: {
@@ -593,6 +654,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "seller_skills_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       seller_specialties: {
@@ -637,6 +705,13 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_specialties_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
             referencedColumns: ["id"]
           },
         ]
@@ -930,6 +1005,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whapi_configurations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       whapi_logs: {
@@ -1016,6 +1098,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whapi_logs_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -1053,6 +1142,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conversations_assigned_seller_id_fkey"
+            columns: ["assigned_seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conversations_fallback_taken_by_fkey"
             columns: ["fallback_taken_by"]
             isOneToOne: false
@@ -1071,6 +1167,45 @@ export type Database = {
           total_leads: number | null
           total_revenue: number | null
           total_sales: number | null
+        }
+        Relationships: []
+      }
+      sellers_basic_info: {
+        Row: {
+          active: boolean | null
+          conversion_rate: number | null
+          created_at: string | null
+          current_workload: number | null
+          experience_years: number | null
+          id: string | null
+          max_concurrent_leads: number | null
+          name: string | null
+          performance_score: number | null
+          personality_type: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          current_workload?: number | null
+          experience_years?: number | null
+          id?: string | null
+          max_concurrent_leads?: number | null
+          name?: string | null
+          performance_score?: number | null
+          personality_type?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          current_workload?: number | null
+          experience_years?: number | null
+          id?: string | null
+          max_concurrent_leads?: number | null
+          name?: string | null
+          performance_score?: number | null
+          personality_type?: string | null
         }
         Relationships: []
       }
@@ -1133,6 +1268,13 @@ export type Database = {
           user_uuid: string
         }
         Returns: boolean
+      }
+      mask_phone_for_role: {
+        Args: {
+          phone: string
+          user_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
       }
       mask_phone_number: {
         Args: {
