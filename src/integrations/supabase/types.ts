@@ -757,6 +757,7 @@ export type Database = {
           message: string
           source: string
           type: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -765,6 +766,7 @@ export type Database = {
           message: string
           source: string
           type: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -773,6 +775,7 @@ export type Database = {
           message?: string
           source?: string
           type?: string
+          user_id?: string | null
         }
         Relationships: []
       }
