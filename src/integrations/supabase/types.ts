@@ -1247,6 +1247,10 @@ export type Database = {
         Args: { user_uuid?: string }
         Returns: boolean
       }
+      cleanup_message_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_old_data: {
         Args: Record<PropertyKey, never>
         Returns: number
