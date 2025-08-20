@@ -129,20 +129,9 @@ serve(async (req) => {
           if (change.field === 'messages') {
             const processResult = await processMessages(supabase, change.value);
             
-            // Se a mensagem foi salva com sucesso, processar com Dify
-            if (processResult?.conversation_id && processResult?.content) {
-              try {
-                await supabase.functions.invoke('dify-process-messages', {
-                  body: {
-                    conversationId: processResult.conversation_id,
-                    phoneNumber: processResult.phone_number,
-                    messageContent: processResult.content
-                  }
-                });
-              } catch (error) {
-                console.error('Error invoking Dify processing:', error);
-              }
-            }
+            // Mensagem já foi adicionada à message_queue no processMessages
+            // O processamento será feito pelo processo periódico
+            console.log(`Message queued for processing: ${processResult?.conversation_id}`);
           }
         }
       }
@@ -276,11 +265,37 @@ async function processMessages(supabase: any, value: any) {
     }
 
     // Add to message queue for batching
-    await supabase.from('message_queue').insert({
-      conversation_id: conversation.id,
-      messages_content: [content],
-      status: 'waiting'
-    });
+    // Verifica se já existe uma entrada pendente para esta conversa
+    const { data: existingQueue } = await supabase
+      .from('message_queue')
+      .select('*')
+      .eq('conversation_id', conversation.id)
+      .eq('status', 'waiting')
+      .single();
+
+    if (existingQueue) {
+      // Atualiza a entrada existente, adicionando a nova mensagem
+      const updatedMessages = [...(existingQueue.messages_content || []), content];
+      await supabase
+        .from('message_queue')
+        .update({
+          messages_content: updatedMessages,
+          scheduled_for: new Date(Date.now() + 60000).toISOString() // Reagenda para 1 minuto
+        })
+        .eq('id', existingQueue.id);
+      
+      console.log(`Message added to existing queue for conversation ${conversation.id}`);
+    } else {
+      // Cria nova entrada na fila
+      await supabase.from('message_queue').insert({
+        conversation_id: conversation.id,
+        messages_content: [content],
+        status: 'waiting',
+        scheduled_for: new Date(Date.now() + 60000).toISOString() // Agenda para 1 minuto
+      });
+      
+      console.log(`New message queue created for conversation ${conversation.id}`);
+    }
 
     console.log(`Message processed for conversation ${conversation.id}`);
     

@@ -40,23 +40,23 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting to process pending messages...');
+    console.log('🤖 Processando fila de mensagens...');
 
-    // Busca mensagens pendentes na fila
+    // Busca mensagens pendentes na fila que já devem ser processadas
     const { data: pendingMessages, error: queueError } = await supabase
       .from('message_queue')
       .select('*')
       .eq('status', 'waiting')
       .lt('scheduled_for', new Date().toISOString())
       .order('created_at', { ascending: true })
-      .limit(10); // Processa até 10 mensagens por vez
+      .limit(20); // Processa até 20 conversas por vez
 
     if (queueError) {
       throw new Error(`Error fetching pending messages: ${queueError.message}`);
     }
 
     if (!pendingMessages || pendingMessages.length === 0) {
-      console.log('No pending messages to process');
+      console.log('✅ Nenhuma mensagem pendente para processar');
       return new Response(JSON.stringify({ 
         success: true, 
         processed: 0,
@@ -66,7 +66,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Found ${pendingMessages.length} pending messages to process`);
+    console.log(`📨 Encontradas ${pendingMessages.length} conversas com mensagens pendentes`);
 
     // Verifica configuração do Dify
     const { data: integration, error: integrationError } = await supabase
@@ -92,10 +92,13 @@ serve(async (req) => {
 
     let processedCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
-    // Processa cada mensagem pendente
+    // Processa cada entrada da fila
     for (const messageItem of pendingMessages) {
       try {
+        console.log(`🔄 Processando conversa ${messageItem.conversation_id}...`);
+
         // Busca a conversa
         const { data: conversation } = await supabase
           .from('conversations')
@@ -104,15 +107,21 @@ serve(async (req) => {
           .single();
 
         if (!conversation) {
-          console.log(`Conversation ${messageItem.conversation_id} not found, skipping`);
+          console.log(`❌ Conversa ${messageItem.conversation_id} não encontrada, removendo da fila`);
+          
+          await supabase
+            .from('message_queue')
+            .delete()
+            .eq('id', messageItem.id);
+          
+          skippedCount++;
           continue;
         }
 
-        // Verifica se ainda está em modo bot (não está em fallback e não foi finalizada)
-        if (conversation.fallback_mode || conversation.status === 'finished') {
-          console.log(`Conversation ${messageItem.conversation_id} not available for bot processing (fallback: ${conversation.fallback_mode}, status: ${conversation.status}), marking as processed`);
+        // Verifica se a conversa ainda pode ser processada pelo bot
+        if (conversation.fallback_mode) {
+          console.log(`⚠️ Conversa ${messageItem.conversation_id} em modo fallback, pulando`);
           
-          // Marca como processada (não precisa enviar para Dify)
           await supabase
             .from('message_queue')
             .update({ 
@@ -121,19 +130,41 @@ serve(async (req) => {
             })
             .eq('id', messageItem.id);
 
-          processedCount++;
+          skippedCount++;
           continue;
         }
 
-        // Agrupa mensagens
-        const groupedMessage = messageItem.messages_content?.join(' ') || '';
+        if (conversation.status === 'finished') {
+          console.log(`✅ Conversa ${messageItem.conversation_id} já finalizada, pulando`);
+          
+          await supabase
+            .from('message_queue')
+            .update({ 
+              status: 'skipped',
+              processed_at: new Date().toISOString()
+            })
+            .eq('id', messageItem.id);
+
+          skippedCount++;
+          continue;
+        }
+
+        // Agrupa as mensagens da fila
+        const groupedMessage = messageItem.messages_content?.join('\n') || '';
         
         if (!groupedMessage.trim()) {
-          console.log(`Empty message for conversation ${messageItem.conversation_id}, skipping`);
+          console.log(`📭 Mensagem vazia para conversa ${messageItem.conversation_id}, removendo da fila`);
+          
+          await supabase
+            .from('message_queue')
+            .delete()
+            .eq('id', messageItem.id);
+          
+          skippedCount++;
           continue;
         }
 
-        console.log(`Processing message for conversation ${messageItem.conversation_id}: ${groupedMessage}`);
+        console.log(`💬 Enviando mensagem agrupada para Dify: "${groupedMessage.substring(0, 100)}..."`);
 
         // Prepara payload para Dify
         const payload: DifyMessage = {
@@ -146,11 +177,10 @@ serve(async (req) => {
         // Busca conversation_id do Dify se existir
         if (conversation.metadata?.dify_conversation_id) {
           payload.conversation_id = conversation.metadata.dify_conversation_id;
+          console.log(`🔗 Usando Dify conversation_id existente: ${payload.conversation_id}`);
         }
 
         // Envia para Dify
-        console.log(`Sending to Dify: ${config.api_url}/chat-messages`);
-        
         const response = await fetch(`${config.api_url}/chat-messages`, {
           method: 'POST',
           headers: {
@@ -162,7 +192,7 @@ serve(async (req) => {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Dify API error for conversation ${messageItem.conversation_id}: ${response.status} ${response.statusText} - ${errorText}`);
+          console.error(`❌ Erro na API do Dify para conversa ${messageItem.conversation_id}: ${response.status} ${response.statusText} - ${errorText}`);
           
           // Marca como erro na fila
           await supabase
@@ -176,13 +206,14 @@ serve(async (req) => {
           // Log do erro
           await supabase.from('system_logs').insert({
             type: 'error',
-            source: 'dify-manual-processing',
-            message: 'Erro ao processar mensagem pendente',
+            source: 'message_queue_processor',
+            message: 'Erro ao processar mensagem da fila',
             details: {
               conversation_id: messageItem.conversation_id,
               phone_number: conversation.phone_number,
               error: `Dify API error: ${response.status} ${response.statusText} - ${errorText}`,
-              queue_item_id: messageItem.id
+              queue_item_id: messageItem.id,
+              grouped_message: groupedMessage
             }
           });
 
@@ -191,6 +222,7 @@ serve(async (req) => {
         }
 
         const difyResponse: DifyResponse = await response.json();
+        console.log(`✅ Resposta recebida do Dify: "${difyResponse.answer.substring(0, 100)}..."`);
 
         // Salva resposta do bot no banco
         await supabase.from('messages').insert({
@@ -202,7 +234,9 @@ serve(async (req) => {
           metadata: {
             dify_message_id: difyResponse.message_id,
             tokens_used: difyResponse.metadata.usage.total_tokens,
-            processed_manually: true
+            processed_from_queue: true,
+            queue_item_id: messageItem.id,
+            grouped_messages_count: messageItem.messages_content?.length || 0
           }
         });
 
@@ -214,15 +248,17 @@ serve(async (req) => {
             metadata: {
               ...currentMetadata,
               dify_conversation_id: difyResponse.conversation_id,
-              last_dify_message: difyResponse.message_id
+              last_dify_message: difyResponse.message_id,
+              last_processed_at: new Date().toISOString()
             }
           })
           .eq('id', messageItem.conversation_id);
 
         // Envia resposta via WhatsApp
+        console.log(`📱 Enviando resposta via WhatsApp para ${conversation.phone_number}`);
         await sendWhatsAppReply(conversation.phone_number, difyResponse.answer, supabase);
 
-        // Marca como processada na fila
+        // Remove da fila (marca como processada)
         await supabase
           .from('message_queue')
           .update({ 
@@ -234,22 +270,23 @@ serve(async (req) => {
         // Log de sucesso
         await supabase.from('system_logs').insert({
           type: 'info',
-          source: 'dify-manual-processing',
-          message: 'Mensagem pendente processada com sucesso',
+          source: 'message_queue_processor',
+          message: 'Mensagem da fila processada com sucesso',
           details: {
             conversation_id: messageItem.conversation_id,
             phone_number: conversation.phone_number,
             message_id: difyResponse.message_id,
             tokens_used: difyResponse.metadata.usage.total_tokens,
-            queue_item_id: messageItem.id
+            queue_item_id: messageItem.id,
+            grouped_messages_count: messageItem.messages_content?.length || 0
           }
         });
 
         processedCount++;
-        console.log(`Successfully processed pending message for conversation ${messageItem.conversation_id}`);
+        console.log(`✅ Conversa ${messageItem.conversation_id} processada com sucesso`);
 
       } catch (error) {
-        console.error(`Error processing message for conversation ${messageItem.conversation_id}:`, error);
+        console.error(`❌ Erro ao processar conversa ${messageItem.conversation_id}:`, error);
         
         // Marca como erro na fila
         await supabase
@@ -260,6 +297,19 @@ serve(async (req) => {
           })
           .eq('id', messageItem.id);
 
+        // Log do erro
+        await supabase.from('system_logs').insert({
+          type: 'error',
+          source: 'message_queue_processor',
+          message: 'Erro inesperado ao processar mensagem da fila',
+          details: {
+            conversation_id: messageItem.conversation_id,
+            error: error.message,
+            stack: error.stack,
+            queue_item_id: messageItem.id
+          }
+        });
+
         errorCount++;
       }
     }
@@ -268,18 +318,19 @@ serve(async (req) => {
       success: true,
       processed: processedCount,
       errors: errorCount,
+      skipped: skippedCount,
       total_found: pendingMessages.length,
-      message: `Processed ${processedCount} messages, ${errorCount} errors`
+      message: `Processadas ${processedCount} mensagens, ${errorCount} erros, ${skippedCount} puladas`
     };
 
-    console.log('Processing complete:', result);
+    console.log(`🎯 Processamento concluído:`, result);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in process-pending-messages:', error);
+    console.error('❌ Erro no processador da fila:', error);
     
     return new Response(JSON.stringify({ 
       success: false,
@@ -305,9 +356,9 @@ async function sendWhatsAppReply(phoneNumber: string, message: string, supabase:
       throw error;
     }
 
-    console.log(`WhatsApp reply sent to ${phoneNumber}`);
+    console.log(`📨 Resposta enviada via WhatsApp para ${phoneNumber}`);
   } catch (error) {
-    console.error('Error sending WhatsApp reply:', error);
+    console.error('❌ Erro ao enviar resposta via WhatsApp:', error);
     throw error;
   }
 }
