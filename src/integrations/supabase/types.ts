@@ -748,7 +748,6 @@ export type Database = {
           whapi_error_message: string | null
           whapi_last_test: string | null
           whapi_status: string | null
-          whapi_token: string | null
           whapi_token_secret_name: string | null
           whapi_webhook: string | null
           whapi_webhook_url: string | null
@@ -775,7 +774,6 @@ export type Database = {
           whapi_error_message?: string | null
           whapi_last_test?: string | null
           whapi_status?: string | null
-          whapi_token?: string | null
           whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null
@@ -802,7 +800,6 @@ export type Database = {
           whapi_error_message?: string | null
           whapi_last_test?: string | null
           whapi_status?: string | null
-          whapi_token?: string | null
           whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null

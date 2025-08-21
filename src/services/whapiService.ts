@@ -517,10 +517,21 @@ _Alerta automático do sistema de monitoramento_`;
   }
 
   private async getSecretValue(secretName: string): Promise<string | null> {
-    // Em um ambiente real, isso buscaria o secret do Supabase
-    // Por enquanto, simular a busca
-    console.log(`Buscando secret: ${secretName}`);
-    return process.env[secretName] || null;
+    try {
+      const { data, error } = await supabase.functions.invoke('get-secret', {
+        body: { secretName }
+      });
+
+      if (error) {
+        console.error(`Error fetching secret ${secretName}:`, error);
+        return null;
+      }
+
+      return data?.value || null;
+    } catch (error) {
+      console.error(`Failed to get secret ${secretName}:`, error);
+      return null;
+    }
   }
 }
 

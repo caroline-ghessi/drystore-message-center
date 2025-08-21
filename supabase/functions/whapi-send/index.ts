@@ -150,20 +150,21 @@ serve(async (req) => {
         direction = 'bot_to_seller'
         console.log('🤖 Token identificado como: Rodrigo Bot - Número: 5551981155622')
       } else {
-        // Buscar token de vendedor no banco
-        const { data: whapiConfig } = await supabase
-          .from('whapi_configurations')
-          .select('phone_number, token_secret_name, type')
+        // Buscar token de vendedor no banco (usando nova estrutura segura)
+        const { data: sellers } = await supabase
+          .from('sellers')
+          .select('phone_number, whapi_token_secret_name, id')
           .eq('active', true)
+          .not('whapi_token_secret_name', 'is', null)
 
-        if (whapiConfig) {
-          for (const config of whapiConfig) {
-            const configToken = Deno.env.get(config.token_secret_name)
-            if (configToken === request.token) {
-              senderPhone = config.phone_number
-              tokenSecretName = config.token_secret_name
-              direction = config.type === 'seller' ? 'seller_to_customer' : 'bot_to_seller'
-              console.log(`👤 Token identificado como: ${config.type} - ${config.phone_number}`)
+        if (sellers) {
+          for (const seller of sellers) {
+            const sellerToken = Deno.env.get(seller.whapi_token_secret_name)
+            if (sellerToken === request.token) {
+              senderPhone = seller.phone_number
+              tokenSecretName = seller.whapi_token_secret_name
+              direction = 'seller_to_customer'
+              console.log(`👤 Token identificado como: Vendedor - ${seller.phone_number}`)
               break
             }
           }

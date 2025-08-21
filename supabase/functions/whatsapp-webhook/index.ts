@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Rate limiting - simple in-memory store (in production, use Redis)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const RATE_LIMIT_REQUESTS = 100; // 100 requests per minute
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const clientData = rateLimitStore.get(ip);
+  
+  if (!clientData || now > clientData.resetTime) {
+    rateLimitStore.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (clientData.count >= RATE_LIMIT_REQUESTS) {
+    return false;
+  }
+  
+  clientData.count++;
+  return true;
+}
+
 interface WebhookMessage {
   object: string;
   entry: Array<{
@@ -62,6 +84,21 @@ serve(async (req) => {
   );
 
   try {
+    // Get client IP for rate limiting
+    const clientIP = req.headers.get('cf-connecting-ip') || 
+                     req.headers.get('x-forwarded-for')?.split(',')[0] || 
+                     req.headers.get('x-real-ip') || 
+                     '127.0.0.1';
+
+    // Apply rate limiting
+    if (!checkRateLimit(clientIP)) {
+      console.warn(`Rate limit exceeded for IP: ${clientIP}`);
+      return new Response('Rate limit exceeded', { 
+        status: 429, 
+        headers: corsHeaders 
+      });
+    }
+
     const url = new URL(req.url);
     
     // Handle webhook verification (GET request)
