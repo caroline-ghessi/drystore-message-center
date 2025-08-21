@@ -31,7 +31,7 @@ interface DifyResponse {
 
 // Message buffer para agrupar mensagens
 const messageBuffer = new Map<string, { messages: string[], timer: number }>();
-const GROUPING_TIME = 15000; // 15 segundos (otimizado)
+const GROUPING_TIME = 60000; // 60 segundos para agrupamento adequado
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,6 +47,8 @@ serve(async (req) => {
     const { conversationId, phoneNumber, messageContent } = await req.json();
 
     console.log(`Processing message for conversation ${conversationId}, phone ${phoneNumber}`);
+    console.log(`🤖 FASE 1: Recebida mensagem para processamento bot`);
+    console.log(`📋 Detalhes: conversa=${conversationId}, telefone=${phoneNumber}, conteúdo="${messageContent.substring(0, 50)}..."`);
 
     // Verifica se a conversa está em modo bot
     const { data: conversation } = await supabase
@@ -56,6 +58,8 @@ serve(async (req) => {
       .single();
 
     if (!conversation || conversation.fallback_mode || conversation.status !== 'bot_attending') {
+      console.log(`❌ FASE 1: Conversa não elegível para bot`);
+      console.log(`📋 Status: existe=${!!conversation}, fallback=${conversation?.fallback_mode}, status=${conversation?.status}`);
       console.log('Conversation not in bot mode, skipping Dify processing');
       return new Response(JSON.stringify({ 
         success: true, 
@@ -65,12 +69,15 @@ serve(async (req) => {
       });
     }
 
+    console.log(`✅ FASE 1: Conversa elegível para processamento bot`);
+
     // Adiciona mensagem ao buffer
+    console.log(`🔄 FASE 2: Adicionando mensagem ao buffer (agrupamento de 60s)`);
     await addToBuffer(phoneNumber, messageContent, conversationId, supabase);
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'Message added to buffer' 
+      message: '✅ FASE 2: Message added to buffer for 60s grouping' 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -132,7 +139,9 @@ async function processBufferedMessages(
   const groupedMessage = buffer.messages.join(' ');
 
   try {
-    console.log(`Processing grouped message for ${phoneNumber}: ${groupedMessage}`);
+    console.log(`🚀 FASE 3: Processando mensagens agrupadas para ${phoneNumber}`);
+    console.log(`📨 Total de mensagens agrupadas: ${buffer.messages.length}`);
+    console.log(`💬 Conteúdo agrupado: "${groupedMessage.substring(0, 100)}..."`);
 
     // Busca configuração do Dify
     const { data: integration, error: integrationError } = await supabase
@@ -233,33 +242,39 @@ async function processBufferedMessages(
     // Envia resposta via WhatsApp
     await sendWhatsAppReply(phoneNumber, difyResponse.answer, supabase);
 
-    // Log de sucesso
+    // Log de sucesso com detalhes específicos do bot
     await supabase.from('system_logs').insert({
       type: 'info',
-      source: 'dify',
-      message: 'Mensagem processada e enviada com sucesso',
+      source: 'dify_bot_flow',
+      message: '✅ FLUXO BOT: Mensagem processada e enviada com sucesso',
       details: {
         conversation_id: conversationId,
         phone_number: phoneNumber,
         message_id: difyResponse.message_id,
-        tokens_used: difyResponse.metadata.usage.total_tokens
+        tokens_used: difyResponse.metadata.usage.total_tokens,
+        grouped_messages_count: buffer.messages.length,
+        grouping_time_seconds: 60,
+        dify_conversation_id: difyResponse.conversation_id,
+        processing_flow: 'customer_message -> 60s_grouping -> dify_processing -> whatsapp_send'
       }
     });
 
-    console.log(`Successfully processed message for ${phoneNumber}`);
+    console.log(`🎯 FASE 5: Fluxo bot concluído com sucesso para ${phoneNumber}`);
 
   } catch (error) {
     console.error('Error processing buffered messages:', error);
     
-    // Log de erro
+    // Log de erro com detalhes específicos do bot
     await supabase.from('system_logs').insert({
       type: 'error',
-      source: 'dify',
-      message: 'Erro ao processar mensagem agrupada',
+      source: 'dify_bot_flow',
+      message: '❌ FLUXO BOT: Erro ao processar mensagem agrupada',
       details: {
         conversation_id: conversationId,
         phone_number: phoneNumber,
-        error: error.message
+        error: error.message,
+        grouped_messages_count: buffer?.messages.length || 0,
+        processing_stage: 'message_grouping_or_dify_processing'
       }
     });
   }

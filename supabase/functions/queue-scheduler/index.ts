@@ -37,8 +37,8 @@ serve(async (req) => {
     // Processa imediatamente
     await processQueue();
 
-    // Agenda processamento a cada 15 segundos
-    const interval = setInterval(processQueue, 15000);
+// Agenda processamento a cada 30 segundos
+    const interval = setInterval(processQueue, 30000);
 
     // Limpeza quando a função é encerrada
     addEventListener('beforeunload', () => {
@@ -47,9 +47,9 @@ serve(async (req) => {
     });
 
     // Resposta de confirmação
-    return new Response(JSON.stringify({ 
+return new Response(JSON.stringify({ 
       success: true,
-      message: 'Queue scheduler started - processing every 15 seconds'
+      message: 'Queue scheduler started - processing every 30 seconds'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

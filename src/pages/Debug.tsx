@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { MediaRetryTest } from "@/components/Debug/MediaRetryTest";
 import { QueueMonitor } from "@/components/Debug/QueueMonitor";
+import { ConversationStatusMonitor } from "@/components/Debug/ConversationStatusMonitor";
+import { BotFlowTester } from "@/components/Debug/BotFlowTester";
 import { MessageDeliveryMonitor } from "@/components/Debug/MessageDeliveryMonitor";
 import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 import { DeliveryTestPanel } from "@/components/Debug/DeliveryTestPanel";
@@ -23,8 +25,9 @@ export default function Debug() {
       </div>
 
       <Tabs defaultValue="diagnostic" className="w-full">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="diagnostic">Diagnóstico</TabsTrigger>
+          <TabsTrigger value="conversations">Conversas</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify</TabsTrigger>
           <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
@@ -38,6 +41,11 @@ export default function Debug() {
 
         <TabsContent value="diagnostic" className="space-y-6">
           <WhapiSystemDiagnostic />
+        </TabsContent>
+
+        <TabsContent value="conversations" className="space-y-6">
+          <ConversationStatusMonitor />
+          <BotFlowTester />
         </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-6">
