@@ -749,6 +749,7 @@ export type Database = {
           whapi_last_test: string | null
           whapi_status: string | null
           whapi_token: string | null
+          whapi_token_secret_name: string | null
           whapi_webhook: string | null
           whapi_webhook_url: string | null
         }
@@ -775,6 +776,7 @@ export type Database = {
           whapi_last_test?: string | null
           whapi_status?: string | null
           whapi_token?: string | null
+          whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null
         }
@@ -801,6 +803,7 @@ export type Database = {
           whapi_last_test?: string | null
           whapi_status?: string | null
           whapi_token?: string | null
+          whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null
         }
@@ -1291,6 +1294,10 @@ export type Database = {
       get_user_role_safe: {
         Args: { user_uuid?: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_whapi_token_secret_name: {
+        Args: { seller_id_param: string }
+        Returns: string
       }
       has_role: {
         Args: {
