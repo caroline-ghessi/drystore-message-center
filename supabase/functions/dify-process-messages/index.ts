@@ -31,7 +31,7 @@ interface DifyResponse {
 
 // Message buffer para agrupar mensagens
 const messageBuffer = new Map<string, { messages: string[], timer: number }>();
-const GROUPING_TIME = 60000; // 60 segundos
+const GROUPING_TIME = 15000; // 15 segundos (otimizado)
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -267,17 +267,22 @@ async function processBufferedMessages(
 
 async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
   try {
-    // Chama a edge function de envio do WhatsApp
-    const { error } = await supabase.functions.invoke('whatsapp-send', {
+    // Chama a edge function de envio do WhatsApp (com campo correto)
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        message: message,
+        content: message, // Usar 'content' ao invés de 'message'
         type: 'text'
       }
     });
 
     if (error) {
-      throw error;
+      console.error('❌ Erro retornado pela função whatsapp-send:', error);
+      throw new Error(`WhatsApp send error: ${error.message || JSON.stringify(error)}`);
+    }
+
+    if (!data?.success) {
+      throw new Error(`WhatsApp send failed: ${data?.error || 'Unknown error'}`);
     }
 
     console.log(`WhatsApp reply sent to ${phoneNumber}`);

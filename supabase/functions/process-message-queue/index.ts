@@ -48,8 +48,9 @@ serve(async (req) => {
       .select('*')
       .eq('status', 'waiting')
       .lt('scheduled_for', new Date().toISOString())
+      .lte('retry_count', 3) // Não processar mensagens que já tiveram muitas tentativas
       .order('created_at', { ascending: true })
-      .limit(20); // Processa até 20 conversas por vez
+      .limit(10); // Reduzir limite para 10 para evitar sobrecarga
 
     if (queueError) {
       throw new Error(`Error fetching pending messages: ${queueError.message}`);
@@ -194,12 +195,13 @@ serve(async (req) => {
           const errorText = await response.text();
           console.error(`❌ Erro na API do Dify para conversa ${messageItem.conversation_id}: ${response.status} ${response.statusText} - ${errorText}`);
           
-          // Marca como erro na fila
+          // Marca como falha na fila
           await supabase
             .from('message_queue')
             .update({ 
-              status: 'error',
-              processed_at: new Date().toISOString()
+              status: 'failed',
+              processed_at: new Date().toISOString(),
+              last_error: `Dify API error: ${response.status} ${response.statusText} - ${errorText}`
             })
             .eq('id', messageItem.id);
 
@@ -254,18 +256,74 @@ serve(async (req) => {
           })
           .eq('id', messageItem.conversation_id);
 
-        // Envia resposta via WhatsApp
+        // Envia resposta via WhatsApp (com tratamento de retry)
         console.log(`📱 Enviando resposta via WhatsApp para ${conversation.phone_number}`);
-        await sendWhatsAppReply(conversation.phone_number, difyResponse.answer, supabase);
-
-        // Remove da fila (marca como processada)
-        await supabase
-          .from('message_queue')
-          .update({ 
-            status: 'sent',
-            processed_at: new Date().toISOString()
-          })
-          .eq('id', messageItem.id);
+        
+        try {
+          await sendWhatsAppReply(conversation.phone_number, difyResponse.answer, supabase);
+          
+          // Sucesso - marca como enviado
+          await supabase
+            .from('message_queue')
+            .update({ 
+              status: 'sent',
+              processed_at: new Date().toISOString()
+            })
+            .eq('id', messageItem.id);
+            
+        } catch (whatsappError) {
+          console.error(`❌ Erro ao enviar WhatsApp para conversa ${messageItem.conversation_id}:`, whatsappError);
+          
+          // Incrementa contador de retry
+          const newRetryCount = (messageItem.retry_count || 0) + 1;
+          const maxRetries = messageItem.max_retries || 3;
+          
+          if (newRetryCount >= maxRetries) {
+            // Esgotaram-se as tentativas - marca como falha
+            await supabase
+              .from('message_queue')
+              .update({ 
+                status: 'failed',
+                processed_at: new Date().toISOString(),
+                retry_count: newRetryCount,
+                last_error: whatsappError.message
+              })
+              .eq('id', messageItem.id);
+              
+            console.log(`❌ Mensagem ${messageItem.id} marcada como falha após ${newRetryCount} tentativas`);
+          } else {
+            // Reagenda para nova tentativa em 30 segundos
+            await supabase
+              .from('message_queue')
+              .update({ 
+                retry_count: newRetryCount,
+                scheduled_for: new Date(Date.now() + 30000).toISOString(), // 30 segundos
+                last_error: whatsappError.message
+              })
+              .eq('id', messageItem.id);
+              
+            console.log(`🔄 Mensagem ${messageItem.id} reagendada para tentativa ${newRetryCount}/${maxRetries}`);
+          }
+          
+          // Log de erro detalhado
+          await supabase.from('system_logs').insert({
+            type: 'error',
+            source: 'message_queue_processor',
+            message: 'Erro ao enviar mensagem via WhatsApp',
+            details: {
+              conversation_id: messageItem.conversation_id,
+              phone_number: conversation.phone_number,
+              retry_count: newRetryCount,
+              max_retries: maxRetries,
+              error: whatsappError.message,
+              queue_item_id: messageItem.id,
+              will_retry: newRetryCount < maxRetries
+            }
+          });
+          
+          errorCount++;
+          continue; // Continua para próxima mensagem
+        }
 
         // Log de sucesso
         await supabase.from('system_logs').insert({
@@ -288,12 +346,13 @@ serve(async (req) => {
       } catch (error) {
         console.error(`❌ Erro ao processar conversa ${messageItem.conversation_id}:`, error);
         
-        // Marca como erro na fila
+        // Marca como falha na fila
         await supabase
           .from('message_queue')
           .update({ 
-            status: 'error',
-            processed_at: new Date().toISOString()
+            status: 'failed',
+            processed_at: new Date().toISOString(),
+            last_error: error.message
           })
           .eq('id', messageItem.id);
 
@@ -344,21 +403,26 @@ serve(async (req) => {
 
 async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
   try {
-    const { error } = await supabase.functions.invoke('whatsapp-send', {
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        message: message,
+        content: message, // Usar 'content' que é o campo correto
         type: 'text'
       }
     });
 
     if (error) {
-      throw error;
+      console.error('❌ Erro retornado pela função whatsapp-send:', error);
+      throw new Error(`WhatsApp send error: ${error.message || JSON.stringify(error)}`);
+    }
+
+    if (!data?.success) {
+      throw new Error(`WhatsApp send failed: ${data?.error || 'Unknown error'}`);
     }
 
     console.log(`📨 Resposta enviada via WhatsApp para ${phoneNumber}`);
   } catch (error) {
-    console.error('❌ Erro ao enviar resposta via WhatsApp:', error);
+    console.error('❌ Erro ao invocar whatsapp-send:', error);
     throw error;
   }
 }

@@ -10,7 +10,8 @@ const corsHeaders = {
 interface SendMessageRequest {
   to: string;
   type: 'text' | 'template';
-  content: string;
+  content?: string; // Content opcional para text messages
+  message?: string; // Alias para content (compatibilidade)
   template_name?: string;
   template_language?: string;
   template_components?: any[];
@@ -32,9 +33,21 @@ serve(async (req) => {
 
   try {
     const request: SendMessageRequest = await req.json();
-    const { to, type, content, template_name, template_language, template_components } = request;
+    const { to, type, template_name, template_language, template_components } = request;
+    
+    // Normalizar content/message (compatibilidade com diferentes chamadas)
+    const content = request.content || request.message;
 
     console.log('Sending WhatsApp message:', { to, type, content });
+
+    // Validação básica
+    if (!to || !to.trim()) {
+      throw new Error('Recipient phone number is required');
+    }
+
+    if (type === 'text' && (!content || content.trim() === '')) {
+      throw new Error('Content is required for text messages');
+    }
 
     // Get Meta WhatsApp configuration from environment (more secure)
     const accessToken = Deno.env.get('META_ACCESS_TOKEN');

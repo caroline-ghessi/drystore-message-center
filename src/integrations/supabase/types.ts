@@ -303,8 +303,11 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           id: string
+          last_error: string | null
+          max_retries: number | null
           messages_content: string[] | null
           processed_at: string | null
+          retry_count: number | null
           scheduled_for: string | null
           status: string | null
         }
@@ -312,8 +315,11 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           id?: string
+          last_error?: string | null
+          max_retries?: number | null
           messages_content?: string[] | null
           processed_at?: string | null
+          retry_count?: number | null
           scheduled_for?: string | null
           status?: string | null
         }
@@ -321,8 +327,11 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           id?: string
+          last_error?: string | null
+          max_retries?: number | null
           messages_content?: string[] | null
           processed_at?: string | null
+          retry_count?: number | null
           scheduled_for?: string | null
           status?: string | null
         }
