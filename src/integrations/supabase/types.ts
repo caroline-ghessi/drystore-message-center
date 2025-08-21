@@ -1236,6 +1236,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      audit_security_event: {
+        Args: {
+          details?: Json
+          event_type: string
+          record_id: string
+          table_name: string
+        }
+        Returns: undefined
+      }
       audit_sensitive_data_access: {
         Args: {
           accessed_fields: string[]
@@ -1264,9 +1273,26 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      get_conversation_with_logging: {
+        Args: { conversation_id: string }
+        Returns: {
+          assigned_operator_id: string
+          assigned_seller_id: string
+          created_at: string
+          customer_name: string
+          id: string
+          phone_number: string
+          status: string
+          updated_at: string
+        }[]
+      }
       get_dashboard_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_masked_customer_phone: {
+        Args: { phone_number: string }
+        Returns: string
       }
       get_masked_phone: {
         Args: { phone_number: string }
@@ -1302,6 +1328,14 @@ export type Database = {
           user_uuid: string
         }
         Returns: boolean
+      }
+      log_data_access: {
+        Args: {
+          record_id: string
+          sensitive_fields: string[]
+          table_name: string
+        }
+        Returns: undefined
       }
       mask_phone_for_role: {
         Args: {
