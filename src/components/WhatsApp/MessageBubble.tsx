@@ -32,6 +32,7 @@ export function MessageBubble({
   const [duration, setDuration] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const isFromCustomer = sender_type === 'customer';
@@ -69,13 +70,37 @@ export function MessageBubble({
     }
   };
 
-  const handleDownload = (url: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (url: string, filename: string) => {
+    setIsDownloading(true);
+    
+    try {
+      // Tentar baixar via fetch + blob para contornar CORS
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Falha no download');
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpar o blob URL depois de um tempo
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      
+    } catch (error) {
+      console.warn('Download via blob falhou, abrindo em nova aba:', error);
+      // Fallback: abrir em nova aba para visualização
+      window.open(url, '_blank');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   useEffect(() => {
@@ -240,8 +265,13 @@ export function MessageBubble({
                 variant="ghost" 
                 className="h-8 w-8 p-0 flex-shrink-0"
                 onClick={() => handleDownload(media_url!, fileName)}
+                disabled={isDownloading}
               >
-                <Download className="h-4 w-4" />
+                {isDownloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
               </Button>
             )}
           </div>
