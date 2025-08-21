@@ -559,6 +559,33 @@ export type Database = {
           },
         ]
       }
+      security_rate_limits: {
+        Row: {
+          action_type: string
+          attempt_count: number | null
+          created_at: string | null
+          id: string
+          user_id: string | null
+          window_start: string | null
+        }
+        Insert: {
+          action_type: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          action_type?: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id?: string | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       seller_performance_metrics: {
         Row: {
           created_at: string | null
@@ -1263,6 +1290,15 @@ export type Database = {
       }
       can_access_unassigned_conversations: {
         Args: { user_uuid?: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          action_type_param: string
+          max_attempts?: number
+          user_id_param: string
+          window_minutes?: number
+        }
         Returns: boolean
       }
       cleanup_message_queue: {
