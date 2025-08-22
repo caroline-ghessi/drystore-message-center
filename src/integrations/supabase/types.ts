@@ -23,7 +23,7 @@ export type Database = {
           old_values: Json | null
           record_id: string | null
           table_name: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           action: string
@@ -33,7 +33,7 @@ export type Database = {
           old_values?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           action?: string
@@ -43,7 +43,7 @@ export type Database = {
           old_values?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -159,7 +159,7 @@ export type Database = {
           record_id: string | null
           sensitive_fields: string[] | null
           table_name: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           action: string
@@ -168,7 +168,7 @@ export type Database = {
           record_id?: string | null
           sensitive_fields?: string[] | null
           table_name: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           action?: string
@@ -177,7 +177,7 @@ export type Database = {
           record_id?: string | null
           sensitive_fields?: string[] | null
           table_name?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -565,7 +565,7 @@ export type Database = {
           attempt_count: number | null
           created_at: string | null
           id: string
-          user_id: string | null
+          user_id: string
           window_start: string | null
         }
         Insert: {
@@ -573,7 +573,7 @@ export type Database = {
           attempt_count?: number | null
           created_at?: string | null
           id?: string
-          user_id?: string | null
+          user_id: string
           window_start?: string | null
         }
         Update: {
@@ -581,7 +581,7 @@ export type Database = {
           attempt_count?: number | null
           created_at?: string | null
           id?: string
-          user_id?: string | null
+          user_id?: string
           window_start?: string | null
         }
         Relationships: []
@@ -894,6 +894,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          created_at: string | null
           email: string
           id: string
           metadata: Json | null
@@ -904,6 +905,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          created_at?: string | null
           email: string
           id?: string
           metadata?: Json | null
@@ -914,6 +916,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          created_at?: string | null
           email?: string
           id?: string
           metadata?: Json | null
@@ -1344,6 +1347,34 @@ export type Database = {
           phone_number: string
           status: string
           total_messages: number
+        }[]
+      }
+      get_seller_dashboard_safe: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active: boolean
+          active_leads: number
+          avg_quality_score: number
+          id: string
+          name: string
+          total_leads: number
+          total_revenue: number
+          total_sales: number
+        }[]
+      }
+      get_sellers_basic_info_safe: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active: boolean
+          conversion_rate: number
+          created_at: string
+          current_workload: number
+          experience_years: number
+          id: string
+          max_concurrent_leads: number
+          name: string
+          performance_score: number
+          personality_type: string
         }[]
       }
       get_user_role: {
