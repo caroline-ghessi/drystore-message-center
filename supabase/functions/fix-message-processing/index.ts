@@ -19,45 +19,82 @@ Deno.serve(async (req) => {
 
   try {
     // FASE 1: Processar imediatamente a mensagem da Caroline
+    console.log('🔍 Buscando mensagem da Caroline...')
+    
     const { data: carolineQueue, error: carolineError } = await supabase
       .from('message_queue')
-      .select('*, conversations!inner(*)')
+      .select(`
+        id,
+        conversation_id,
+        messages_content,
+        conversations!inner(
+          id,
+          customer_name,
+          phone_number,
+          status,
+          fallback_mode
+        )
+      `)
       .eq('conversations.customer_name', 'Caroline Ghessi')
       .eq('status', 'waiting')
-      .single()
 
-    if (carolineQueue && !carolineError) {
-      console.log('📱 Processando mensagem da Caroline imediatamente...')
+    console.log('📋 Resultado busca Caroline:', { carolineQueue, carolineError })
+
+    if (carolineQueue && carolineQueue.length > 0) {
+      const caroline = carolineQueue[0]
+      console.log('📱 Processando mensagem da Caroline:', caroline)
       
-      // Invocar o processamento da mensagem
-      const { data: processResult, error: processError } = await supabase.functions.invoke('process-message-queue', {
-        body: { 
+      // Marcar como processed primeiro
+      await supabase
+        .from('message_queue')
+        .update({ 
+          status: 'processed',
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', caroline.id)
+
+      // Invocar process-message-queue diretamente
+      const processUrl = 'https://groqsnnytvjabgeaekkw.supabase.co/functions/v1/process-message-queue'
+      const processResponse = await fetch(processUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({
           force_process: true,
-          conversation_ids: [carolineQueue.conversation_id]
-        }
+          target_conversation: caroline.conversation_id
+        })
       })
 
-      if (processError) {
-        console.error('❌ Erro ao processar mensagem da Caroline:', processError)
-      } else {
-        console.log('✅ Mensagem da Caroline processada:', processResult)
-      }
+      const processResult = await processResponse.text()
+      console.log('📤 Resultado processamento:', processResult)
+    } else {
+      console.log('⚠️ Nenhuma mensagem da Caroline encontrada')
     }
 
     // FASE 2: Limpar mensagens de conversas que não devem ser processadas pelo bot
-    const { data: cleanupResult, error: cleanupError } = await supabase
-      .from('message_queue')
-      .delete()
-      .in('conversation_id', 
-        // Subquery para pegar conversas em fallback_mode ou sent_to_seller
-        await supabase
-          .from('conversations')
-          .select('id')
-          .or('fallback_mode.eq.true,status.eq.sent_to_seller')
-          .then(result => result.data?.map(c => c.id) || [])
-      )
+    console.log('🧹 Limpando mensagens inválidas da fila...')
+    
+    // Buscar conversas que não devem estar na fila
+    const { data: invalidConversations } = await supabase
+      .from('conversations')
+      .select('id')
+      .or('fallback_mode.eq.true,status.eq.sent_to_seller')
 
-    console.log(`🧹 Removidas ${cleanupResult ? 'várias' : '0'} mensagens inválidas da fila`)
+    if (invalidConversations && invalidConversations.length > 0) {
+      const invalidIds = invalidConversations.map(c => c.id)
+      console.log(`🗑️ Removendo mensagens de ${invalidIds.length} conversas inválidas`)
+      
+      const { data: cleanupResult, error: cleanupError } = await supabase
+        .from('message_queue')
+        .delete()
+        .in('conversation_id', invalidIds)
+
+      console.log(`🧹 Resultado limpeza:`, { cleanupResult, cleanupError })
+    } else {
+      console.log('✅ Nenhuma mensagem inválida encontrada')
+    }
 
     // FASE 3: Corrigir o cron job com token correto
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
