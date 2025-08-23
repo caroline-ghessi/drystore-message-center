@@ -80,7 +80,43 @@ serve(async (req) => {
 
     console.log(`Arquivo salvo com sucesso: ${publicUrl}`);
 
-    // 6. Registrar no log do sistema
+    // 6. Verificar se é áudio e se a conversa tem áudio habilitado
+    let transcription = null;
+    if (messageType === 'audio' && (mimeType.startsWith('audio/') || mimeType.includes('voice'))) {
+      try {
+        // Verificar se a conversa tem áudio habilitado
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('audio_enabled')
+          .eq('id', conversationId)
+          .single();
+
+        if (conversation?.audio_enabled) {
+          console.log('Iniciando transcrição de áudio via ElevenLabs...');
+          
+          // Chamar ElevenLabs Speech-to-Text
+          const { data: transcriptionData, error: transcriptionError } = await supabase.functions.invoke('elevenlabs-speech-to-text', {
+            body: {
+              audioUrl: publicUrl,
+              conversationId,
+              messageId: null // Será definido na criação da mensagem
+            }
+          });
+
+          if (transcriptionError) {
+            console.error('Erro na transcrição:', transcriptionError);
+          } else if (transcriptionData?.success) {
+            transcription = transcriptionData.transcription;
+            console.log(`Transcrição realizada: "${transcription.substring(0, 100)}..."`);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao processar transcrição:', error);
+        // Continua sem transcrição se houver erro
+      }
+    }
+
+    // 7. Registrar no log do sistema
     await supabase.from('system_logs').insert({
       type: 'info',
       source: 'whatsapp-media-processor',
@@ -91,7 +127,9 @@ serve(async (req) => {
         file_name: fileName,
         mime_type: mimeType,
         public_url: publicUrl,
-        file_size: blob.size
+        file_size: blob.size,
+        transcription_available: !!transcription,
+        transcription_length: transcription?.length || 0
       }
     });
 
@@ -100,7 +138,8 @@ serve(async (req) => {
       publicUrl,
       fileName,
       mimeType,
-      fileSize: blob.size
+      fileSize: blob.size,
+      transcription
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

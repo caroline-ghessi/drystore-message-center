@@ -9,12 +9,14 @@ const corsHeaders = {
 
 interface SendMessageRequest {
   to: string;
-  type: 'text' | 'template';
+  type: 'text' | 'template' | 'audio';
   content?: string; // Content opcional para text messages
   message?: string; // Alias para content (compatibilidade)
   template_name?: string;
   template_language?: string;
   template_components?: any[];
+  audioBase64?: string; // Base64 do áudio para envio
+  conversationId?: string; // ID da conversa para logs
 }
 
 serve(async (req) => {
@@ -33,12 +35,12 @@ serve(async (req) => {
 
   try {
     const request: SendMessageRequest = await req.json();
-    const { to, type, template_name, template_language, template_components } = request;
+    const { to, type, template_name, template_language, template_components, audioBase64, conversationId } = request;
     
     // Normalizar content/message (compatibilidade com diferentes chamadas)
     const content = request.content || request.message;
 
-    console.log('Sending WhatsApp message:', { to, type, content });
+    console.log('Sending WhatsApp message:', { to, type, content: content?.substring(0, 100), hasAudio: !!audioBase64 });
 
     // Validação básica
     if (!to || !to.trim()) {
@@ -47,6 +49,10 @@ serve(async (req) => {
 
     if (type === 'text' && (!content || content.trim() === '')) {
       throw new Error('Content is required for text messages');
+    }
+
+    if (type === 'audio' && !audioBase64) {
+      throw new Error('Audio data is required for audio messages');
     }
 
     // Get Meta WhatsApp configuration from environment (more secure)
@@ -71,6 +77,36 @@ serve(async (req) => {
           code: template_language || 'pt_BR'
         },
         components: template_components || []
+      };
+    } else if (type === 'audio' && audioBase64) {
+      // Converter base64 para upload de mídia
+      const audioBuffer = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+      
+      // Upload do áudio para o WhatsApp primeiro
+      const mediaFormData = new FormData();
+      mediaFormData.append('file', audioBlob, 'audio.mp3');
+      mediaFormData.append('type', 'audio/mpeg');
+      mediaFormData.append('messaging_product', 'whatsapp');
+
+      const uploadResponse = await fetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/media`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: mediaFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        const uploadError = await uploadResponse.text();
+        throw new Error(`Failed to upload audio: ${uploadResponse.status} - ${uploadError}`);
+      }
+
+      const uploadData = await uploadResponse.json();
+      
+      messagePayload.type = 'audio';
+      messagePayload.audio = {
+        id: uploadData.id
       };
     } else {
       messagePayload.type = 'text';
@@ -128,11 +164,24 @@ serve(async (req) => {
 
     // If sending to a conversation, save the message
     if (responseData.messages?.[0]?.id) {
-      const { data: conversation } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('phone_number', to)
-        .single();
+      let conversation = null;
+      
+      // Use conversationId if provided, otherwise lookup by phone
+      if (conversationId) {
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('id', conversationId)
+          .single();
+        conversation = conv;
+      } else {
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('phone_number', to)
+          .single();
+        conversation = conv;
+      }
 
       if (conversation) {
         await supabase.from('messages').insert({
@@ -141,10 +190,12 @@ serve(async (req) => {
           sender_type: 'bot',
           sender_name: 'Sistema',
           content: content,
-          message_type: type === 'template' ? 'template' : 'text',
+          message_type: type === 'template' ? 'template' : (type === 'audio' ? 'audio' : 'text'),
           metadata: { 
             template_name,
-            graph_api_response: responseData
+            graph_api_response: responseData,
+            sent_as_audio: type === 'audio',
+            elevenlabs_generated: !!audioBase64
           }
         });
       }

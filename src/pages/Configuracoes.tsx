@@ -20,6 +20,7 @@ import RodrigoBotCard from "@/components/Config/RodrigoBotCard";
 import { RodrigoBotWhapiCard } from "@/components/Config/RodrigoBotWhapiCard";
 import MetaIntegrationSetup from "@/components/Config/MetaIntegrationSetup";
 import { DifyIntegrationSetup } from "@/components/Config/DifyIntegrationSetup";
+import { ElevenLabsIntegrationSetup } from "@/components/Config/ElevenLabsIntegrationSetup";
 import SellerProfileForm from "@/components/Config/SellerProfileForm";
 import { useSellers, useDeleteSeller } from "@/hooks/useSellers";
 
@@ -248,6 +249,7 @@ export default function Configuracoes() {
         <TabsContent value="integrations" className="space-y-6">
           <MetaIntegrationSetup />
           <DifyIntegrationSetup />
+          <ElevenLabsIntegrationSetup />
           
           <Card className="shadow-card">
             <CardHeader>

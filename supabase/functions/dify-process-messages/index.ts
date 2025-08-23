@@ -239,8 +239,8 @@ async function processBufferedMessages(
       })
       .eq('id', conversationId);
 
-    // Envia resposta via WhatsApp
-    await sendWhatsAppReply(phoneNumber, difyResponse.answer, supabase);
+    // Envia resposta via WhatsApp (com possível conversão para áudio)
+    await sendWhatsAppReply(phoneNumber, difyResponse.answer, conversationId, supabase);
 
     // Log de sucesso com detalhes específicos do bot
     await supabase.from('system_logs').insert({
@@ -280,14 +280,50 @@ async function processBufferedMessages(
   }
 }
 
-async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
+async function sendWhatsAppReply(phoneNumber: string, message: string, conversationId: string, supabase: any) {
   try {
-    // Chama a edge function de envio do WhatsApp (com campo correto)
+    // Verificar se a conversa tem áudio habilitado
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('audio_enabled, preferred_voice')
+      .eq('id', conversationId)
+      .single();
+
+    let audioBase64 = null;
+    
+    // Se áudio estiver habilitado, converter texto para áudio
+    if (conversation?.audio_enabled) {
+      try {
+        console.log('Convertendo resposta do bot para áudio...');
+        
+        const { data: ttsData, error: ttsError } = await supabase.functions.invoke('elevenlabs-text-to-speech', {
+          body: {
+            text: message,
+            voiceId: conversation.preferred_voice,
+            conversationId
+          }
+        });
+
+        if (ttsError) {
+          console.error('Erro na síntese de voz:', ttsError);
+        } else if (ttsData?.success) {
+          audioBase64 = ttsData.audioBase64;
+          console.log('Áudio gerado com sucesso');
+        }
+      } catch (error) {
+        console.error('Erro ao processar TTS:', error);
+        // Continua com texto se houver erro na síntese
+      }
+    }
+
+    // Chama a edge function de envio do WhatsApp
     const { data, error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        content: message, // Usar 'content' ao invés de 'message'
-        type: 'text'
+        content: message,
+        type: audioBase64 ? 'audio' : 'text',
+        audioBase64: audioBase64,
+        conversationId
       }
     });
 
@@ -300,7 +336,7 @@ async function sendWhatsAppReply(phoneNumber: string, message: string, supabase:
       throw new Error(`WhatsApp send failed: ${data?.error || 'Unknown error'}`);
     }
 
-    console.log(`WhatsApp reply sent to ${phoneNumber}`);
+    console.log(`WhatsApp reply sent to ${phoneNumber} ${audioBase64 ? '(as audio)' : '(as text)'}`);
   } catch (error) {
     console.error('Error sending WhatsApp reply:', error);
     throw error;
