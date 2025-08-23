@@ -68,6 +68,35 @@ export function ProcessQueueTest() {
     }
   }
 
+  const handleSystemFix = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('fix-system-complete', {
+        body: {}
+      })
+      
+      if (error) {
+        throw error
+      }
+      
+      setResults(data)
+      toast({
+        title: "🔧 Sistema corrigido!",
+        description: "Todas as correções foram aplicadas com sucesso",
+      })
+      
+    } catch (error: any) {
+      console.error('Erro na correção:', error)
+      toast({
+        title: "❌ Erro na correção",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -77,11 +106,20 @@ export function ProcessQueueTest() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button 
+            onClick={handleSystemFix}
+            disabled={loading}
+            variant="default"
+            className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
+          >
+            {loading ? "Corrigindo..." : "🚨 CORREÇÃO COMPLETA"}
+          </Button>
+          
           <Button 
             onClick={handleManualProcess}
             disabled={loading}
-            variant="default"
+            variant="outline"
           >
             {loading ? "Processando..." : "🔧 Processar Manualmente"}
           </Button>
@@ -113,10 +151,16 @@ export function ProcessQueueTest() {
             <strong>Status do Sistema:</strong>
           </div>
           <ul className="list-disc list-inside space-y-1 ml-6">
-            <li>Cron job duplicado removido ✅</li>
-            <li>Apenas 1 job ativo (jobid:7) com service_role token ✅</li>
-            <li>Processamento automático a cada 30 segundos ✅</li>
+            <li className="text-red-600">❌ Conversas bloqueadas (status sent_to_seller com fallback_mode)</li>
+            <li className="text-red-600">❌ 10+ mensagens pendentes há dias</li>
+            <li className="text-red-600">❌ Cron job não está executando de fato</li>
+            <li className="text-red-600">❌ Dify não está recebendo mensagens</li>
           </ul>
+          <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+            <p className="text-red-700 dark:text-red-300 font-semibold">
+              🚨 AÇÃO NECESSÁRIA: Clique em "CORREÇÃO COMPLETA" para resolver todos os problemas
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

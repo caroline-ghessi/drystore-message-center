@@ -1312,6 +1312,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      create_message_queue_cron: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       get_conversation_with_logging: {
         Args: { conversation_id: string }
         Returns: {
@@ -1421,6 +1425,10 @@ export type Database = {
       process_message_queue: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      remove_message_queue_crons: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       request_user_access: {
         Args: {
