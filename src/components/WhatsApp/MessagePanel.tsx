@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OperatorAssignmentPanel } from "@/components/Security/OperatorAssignmentPanel";
 import { AudioToggleDialog } from "./AudioToggleDialog";
+import { FallbackControlPanel } from "./FallbackControlPanel";
 import { useElevenLabsIntegration } from "@/hooks/useElevenLabsIntegration";
 import { Send, Volume2 } from "lucide-react";
 
@@ -28,6 +29,9 @@ interface MessagePanelProps {
   customerName?: string;
   assignedOperatorId?: string;
   onAssignmentChange?: () => void;
+  fallbackMode?: boolean;
+  fallbackTakenBy?: string;
+  fallbackTakenAt?: string;
 }
 
 export function MessagePanel({ 
@@ -38,7 +42,10 @@ export function MessagePanel({
   className,
   customerName,
   assignedOperatorId,
-  onAssignmentChange
+  onAssignmentChange,
+  fallbackMode = false,
+  fallbackTakenBy,
+  fallbackTakenAt
 }: MessagePanelProps) {
   const [newMessage, setNewMessage] = useState('');
   const [audioDialogOpen, setAudioDialogOpen] = useState(false);
@@ -98,6 +105,17 @@ export function MessagePanel({
           />
         </div>
       )}
+
+      {/* Fallback Control Panel */}
+      <div className="px-4 py-2 border-b">
+        <FallbackControlPanel
+          conversationId={conversation_id}
+          fallbackMode={fallbackMode}
+          fallbackTakenBy={fallbackTakenBy}
+          fallbackTakenAt={fallbackTakenAt}
+          onFallbackChange={onAssignmentChange}
+        />
+      </div>
 
       {/* Audio Toggle Panel */}
       {elevenLabsActive && conversation_id && (

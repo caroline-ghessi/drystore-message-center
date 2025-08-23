@@ -6,7 +6,7 @@ import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
 import { ManualTransferDialog } from "@/components/WhatsApp/ManualTransferDialog";
-import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2, ArrowRight } from "lucide-react";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
@@ -108,12 +108,26 @@ export default function MensagensOficial() {
         .from('conversations')
         .update({ 
           fallback_mode: true, 
-          status: 'sent_to_seller',
-          fallback_taken_by: user.id
+          status: 'fallback_active',
+          fallback_taken_by: user.id,
+          updated_at: new Date().toISOString()
         })
         .eq('id', conversationId);
 
       if (error) throw error;
+
+      // Log da ação
+      await supabase.from('system_logs').insert({
+        type: 'info',
+        source: 'fallback_system',
+        message: `Operador assumiu controle da conversa`,
+        details: {
+          conversation_id: conversationId,
+          operator_id: user.id,
+          operator_email: user.email,
+          action: 'assume_control'
+        }
+      });
       
       toast({
         title: "Modo Fallback Ativado",
@@ -124,6 +138,56 @@ export default function MensagensOficial() {
       toast({
         title: "Erro",
         description: "Erro ao assumir conversa. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReturnToBot = async (conversationId: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar logado para devolver uma conversa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ 
+          fallback_mode: false, 
+          status: 'bot_attending',
+          fallback_taken_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conversationId);
+
+      if (error) throw error;
+
+      // Log da ação
+      await supabase.from('system_logs').insert({
+        type: 'info',
+        source: 'fallback_system',
+        message: `Conversa devolvida ao bot`,
+        details: {
+          conversation_id: conversationId,
+          operator_id: user.id,
+          operator_email: user.email,
+          action: 'return_to_bot'
+        }
+      });
+      
+      toast({
+        title: "Conversa Devolvida ao Bot",
+        description: "O bot Dify voltou a processar esta conversa automaticamente.",
+      });
+    } catch (error) {
+      console.error('Erro ao devolver ao bot:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao devolver conversa ao bot. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -364,35 +428,78 @@ export default function MensagensOficial() {
                              <span>Transferir Manual</span>
                            </Button>
                            
-                           {/* Botão Fallback - apenas se não estiver em fallback */}
-                           {!conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
-                             <AlertDialog>
-                               <AlertDialogTrigger asChild>
-                                 <Button size="sm" variant="outline" className="flex items-center space-x-1">
-                                   <User className="h-3 w-3" />
-                                   <span>Assumir Conversa</span>
-                                 </Button>
-                               </AlertDialogTrigger>
-                               <AlertDialogContent>
-                                 <AlertDialogHeader>
-                                   <AlertDialogTitle className="flex items-center space-x-2">
-                                     <AlertTriangle className="h-5 w-5 text-drystore-warning" />
-                                     <span>Ativar Modo Fallback</span>
-                                   </AlertDialogTitle>
-                                   <AlertDialogDescription>
-                                     Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
-                                     Esta ação não pode ser desfeita. Deseja continuar?
-                                   </AlertDialogDescription>
-                                 </AlertDialogHeader>
-                                 <AlertDialogFooter>
-                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                   <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
-                                     Assumir Conversa
-                                   </AlertDialogAction>
-                                 </AlertDialogFooter>
-                               </AlertDialogContent>
-                             </AlertDialog>
-                           )}
+                            {/* Botões de Fallback - Dinâmicos */}
+                            {(() => {
+                              const conversation = conversations.find(c => c.id === selectedConversation);
+                              const isInFallback = conversation?.fallback_mode;
+                              const fallbackTakenBy = conversation?.fallback_taken_by;
+                              const canReturnToBot = isInFallback && fallbackTakenBy === user?.id;
+                              
+                              if (isInFallback) {
+                                return (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button 
+                                        size="sm" 
+                                        variant={canReturnToBot ? "default" : "outline"} 
+                                        className="flex items-center space-x-1"
+                                        disabled={!canReturnToBot}
+                                      >
+                                        <ArrowLeft className="h-3 w-3" />
+                                        <span>Devolver ao Bot</span>
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="flex items-center space-x-2">
+                                          <ArrowLeft className="h-5 w-5 text-drystore-info" />
+                                          <span>Devolver ao Bot Dify</span>
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          O controle desta conversa será devolvido ao bot Dify, que voltará a processar as mensagens automaticamente. 
+                                          Esta ação reativará o atendimento automático. Deseja continuar?
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleReturnToBot(selectedConversation)}>
+                                          Devolver ao Bot
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                );
+                              } else {
+                                return (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                                        <User className="h-3 w-3" />
+                                        <span>Assumir Conversa</span>
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="flex items-center space-x-2">
+                                          <AlertTriangle className="h-5 w-5 text-drystore-warning" />
+                                          <span>Ativar Modo Fallback</span>
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Ao assumir esta conversa, o bot Dify será desativado e você assumirá o controle total. 
+                                          Você poderá devolver o controle ao bot a qualquer momento. Deseja continuar?
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleFallbackMode(selectedConversation)}>
+                                          Assumir Conversa
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                );
+                              }
+                            })()}
                         </div>
                       )}
                     </div>
@@ -418,6 +525,11 @@ export default function MensagensOficial() {
                     canSendMessage={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
                     onSendMessage={handleSendMessage}
                     className="h-full"
+                    customerName={conversations.find(c => c.id === selectedConversation)?.customer_name}
+                    assignedOperatorId={conversations.find(c => c.id === selectedConversation)?.assigned_operator_id}
+                    fallbackMode={conversations.find(c => c.id === selectedConversation)?.fallback_mode || false}
+                    fallbackTakenBy={conversations.find(c => c.id === selectedConversation)?.fallback_taken_by}
+                    fallbackTakenAt={conversations.find(c => c.id === selectedConversation)?.updated_at}
                   />
                 )
               ) : (
