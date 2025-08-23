@@ -42,15 +42,26 @@ serve(async (req) => {
 
     console.log('🤖 Processando fila de mensagens...');
 
+    // Debug: Log do horário atual e fuso horário
+    const now = new Date();
+    console.log(`⏰ Horário atual: ${now.toISOString()} (UTC)`);
+    console.log(`⏰ Horário Brasil: ${now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
+
     // Busca mensagens pendentes na fila que já devem ser processadas
     const { data: pendingMessages, error: queueError } = await supabase
       .from('message_queue')
       .select('*')
       .eq('status', 'waiting')
       .lt('scheduled_for', new Date().toISOString())
-      .lte('retry_count', 3) // Não processar mensagens que já tiveram muitas tentativas
+      .lt('retry_count', 3) // Mudar para 'lt' ao invés de 'lte' para permitir retry_count = 0, 1, 2
       .order('created_at', { ascending: true })
       .limit(10); // Reduzir limite para 10 para evitar sobrecarga
+
+    console.log(`🔍 Query executada com filtros:`, {
+      status: 'waiting',
+      scheduled_before: new Date().toISOString(),
+      retry_count_less_than: 3
+    });
 
     if (queueError) {
       throw new Error(`Error fetching pending messages: ${queueError.message}`);
