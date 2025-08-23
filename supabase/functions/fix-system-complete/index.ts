@@ -19,72 +19,86 @@ serve(async (req) => {
 
     console.log('🔧 Iniciando correção completa do sistema...');
 
-    // FASE 1: Resetar conversas com status inconsistente
-    console.log('📊 FASE 1: Resetando conversas...');
-    
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .update({
-        status: 'bot_attending',
-        fallback_mode: false,
-        fallback_taken_by: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('status', 'sent_to_seller')
-      .eq('fallback_mode', true)
-      .select('id, customer_name');
+    const results = [];
 
-    if (convError) {
-      console.error('❌ Erro ao resetar conversas:', convError);
-      throw convError;
+    // FASE 1: Resetar conversas com problema
+    console.log('📊 FASE 1: Resetando conversas...');
+    try {
+      const { data: conversations, error: convError } = await supabase
+        .from('conversations')
+        .update({
+          status: 'bot_attending',
+          fallback_mode: false,
+          fallback_taken_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .or('status.eq.sent_to_seller,and(fallback_mode.eq.true)')
+        .select('id, customer_name, status');
+
+      if (convError) {
+        console.error('❌ Erro ao resetar conversas:', convError);
+        results.push(`❌ Erro ao resetar conversas: ${convError.message}`);
+      } else {
+        const count = conversations?.length || 0;
+        console.log(`✅ ${count} conversas resetadas para bot_attending`);
+        results.push(`✅ ${count} conversas resetadas`);
+      }
+    } catch (error) {
+      console.error('❌ Erro na fase 1:', error);
+      results.push(`❌ Fase 1 falhou: ${error.message}`);
     }
 
-    console.log(`✅ ${conversations?.length || 0} conversas resetadas para bot_attending`);
-
-    // FASE 2: Processar mensagens pendentes imediatamente
+    // FASE 2: Forçar processamento das mensagens na fila
     console.log('📨 FASE 2: Processando mensagens pendentes...');
-    
-    const { data: processResult, error: processError } = await supabase.functions.invoke('process-message-queue', {
-      body: { force: true, immediate: true }
-    });
+    try {
+      // Processar diretamente mensagens aguardando há mais de 1 minuto
+      const { data: oldMessages, error: updateError } = await supabase
+        .from('message_queue')
+        .update({
+          scheduled_for: new Date().toISOString(),
+          status: 'waiting'
+        })
+        .lt('created_at', new Date(Date.now() - 60000).toISOString())
+        .eq('status', 'waiting')
+        .select('id');
 
-    if (processError) {
-      console.error('❌ Erro ao processar mensagens:', processError);
-    } else {
-      console.log('✅ Mensagens processadas:', processResult);
+      if (updateError) {
+        console.error('❌ Erro ao reprocessar mensagens:', updateError);
+        results.push(`❌ Erro ao reprocessar mensagens: ${updateError.message}`);
+      } else {
+        const count = oldMessages?.length || 0;
+        console.log(`✅ ${count} mensagens marcadas para reprocessamento`);
+        results.push(`✅ ${count} mensagens reprocessadas`);
+      }
+    } catch (error) {
+      console.error('❌ Erro na fase 2:', error);
+      results.push(`❌ Fase 2 falhou: ${error.message}`);
     }
 
     // FASE 3: Recriar cron job
     console.log('⏰ FASE 3: Recriando cron job...');
-    
-    // Remover jobs existentes
-    const { error: unscheduleError } = await supabase.rpc('remove_message_queue_crons');
-    if (unscheduleError) {
-      console.log('⚠️ Aviso ao remover crons existentes:', unscheduleError.message);
+    try {
+      // Remover jobs existentes
+      const { error: unscheduleError } = await supabase.rpc('remove_message_queue_crons');
+      if (unscheduleError) {
+        console.log('⚠️ Aviso ao remover crons existentes:', unscheduleError.message);
+      }
+
+      // Criar novo cron job
+      const { error: cronError } = await supabase.rpc('create_message_queue_cron');
+      if (cronError) {
+        console.error('❌ Erro ao criar cron job:', cronError);
+        results.push(`❌ Erro no cron job: ${cronError.message}`);
+      } else {
+        console.log('✅ Novo cron job criado com sucesso');
+        results.push('✅ Cron job recriado');
+      }
+    } catch (error) {
+      console.error('❌ Erro na fase 3:', error);
+      results.push(`❌ Fase 3 falhou: ${error.message}`);
     }
 
-    // Criar novo cron job
-    const { error: cronError } = await supabase.rpc('create_message_queue_cron');
-    if (cronError) {
-      console.error('❌ Erro ao criar cron job:', cronError);
-    } else {
-      console.log('✅ Novo cron job criado com sucesso');
-    }
-
-    // FASE 4: Testar conexão com Dify
-    console.log('🤖 FASE 4: Testando conexão com Dify...');
-    
-    const { data: difyTest, error: difyError } = await supabase.functions.invoke('test-dify-connection', {
-      body: { test_message: 'Teste de conexão após correção completa' }
-    });
-
-    if (difyError) {
-      console.error('❌ Erro na conexão com Dify:', difyError);
-    } else {
-      console.log('✅ Conexão com Dify testada:', difyTest);
-    }
-
-    // FASE 5: Verificar estado final
+    // FASE 4: Verificar estado final
     const { data: queueStatus } = await supabase
       .from('message_queue')
       .select('status')
@@ -96,12 +110,9 @@ serve(async (req) => {
       .eq('status', 'bot_attending');
 
     const summary = {
-      conversations_reset: conversations?.length || 0,
-      bot_attending_conversations: convStatus?.length || 0,
       pending_messages: queueStatus?.length || 0,
-      dify_connection: difyError ? 'failed' : 'success',
-      cron_job: cronError ? 'failed' : 'success',
-      message_processing: processError ? 'failed' : 'success',
+      bot_attending_conversations: convStatus?.length || 0,
+      correction_results: results,
       timestamp: new Date().toISOString()
     };
 
