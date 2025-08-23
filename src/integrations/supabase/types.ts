@@ -1304,6 +1304,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      cleanup_invalid_queue_messages: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       cleanup_message_queue: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1421,6 +1425,10 @@ export type Database = {
           user_role: Database["public"]["Enums"]["app_role"]
         }
         Returns: string
+      }
+      process_caroline_message: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       process_message_queue: {
         Args: Record<PropertyKey, never>
