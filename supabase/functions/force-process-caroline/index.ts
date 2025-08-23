@@ -17,186 +17,126 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🎯 Processando mensagem específica da Caroline...');
+    console.log('🔄 Forçando reprocessamento da mensagem da Caroline...');
 
-    // Busca a mensagem específica da Caroline
-    const { data: queueItem, error: queueError } = await supabase
-      .from('message_queue')
-      .select('*')
-      .eq('conversation_id', '84d7feb6-c046-41f8-95d5-d678f4f4aa4b')
-      .eq('status', 'waiting')
-      .single();
-
-    if (queueError || !queueItem) {
-      console.log('❌ Mensagem da Caroline não encontrada na fila');
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'Queue item not found' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log('📨 Encontrada mensagem da fila:', queueItem);
-
-    // Busca a conversa
-    const { data: conversation } = await supabase
+    // Buscar conversa da Caroline
+    const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('*')
-      .eq('id', queueItem.conversation_id)
+      .eq('phone_number', '555181223033')
+      .eq('customer_name', 'Caroline Ghessi')
       .single();
 
-    if (!conversation) {
-      console.log('❌ Conversa não encontrada');
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: 'Conversation not found' 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (convError || !conversation) {
+      throw new Error(`Conversa da Caroline não encontrada: ${convError?.message}`);
     }
 
-    // Verifica configuração do Dify
-    const { data: integration, error: integrationError } = await supabase
-      .from('integrations')
-      .select('config, active')
-      .eq('type', 'dify')
+    console.log(`📋 Conversa da Caroline encontrada: ${conversation.id}`);
+
+    // Buscar a última mensagem do bot que foi salva mas não enviada
+    const { data: botMessage, error: msgError } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversation.id)
+      .eq('sender_type', 'bot')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (integrationError || !integration) {
-      throw new Error(`Dify integration not found: ${integrationError?.message || 'No integration data'}`);
+    if (msgError || !botMessage) {
+      throw new Error(`Mensagem do bot não encontrada: ${msgError?.message}`);
     }
 
-    const config = integration.config as { api_url: string };
-    const apiKey = Deno.env.get('DIFY_API_KEY');
-    
-    if (!apiKey) {
-      throw new Error('DIFY_API_KEY not found in secrets');
-    }
+    console.log(`💬 Mensagem do bot encontrada: "${botMessage.content.substring(0, 100)}..."`);
 
-    // Agrupa as mensagens da fila
-    const groupedMessage = queueItem.messages_content?.join('\n') || '';
-    
-    console.log(`💬 Enviando mensagem para Dify: "${groupedMessage}"`);
-
-    // Prepara payload para Dify
-    const payload = {
-      inputs: {},
-      query: groupedMessage,
-      response_mode: 'blocking',
-      user: conversation.phone_number,
-    };
-
-    // Busca conversation_id do Dify se existir
-    if (conversation.metadata?.dify_conversation_id) {
-      payload.conversation_id = conversation.metadata.dify_conversation_id;
-    }
-
-    // Envia para Dify
-    const response = await fetch(`${config.api_url}/chat-messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Erro na API do Dify: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const difyResponse = await response.json();
-    console.log(`✅ Resposta recebida do Dify: "${difyResponse.answer.substring(0, 100)}..."`);
-
-    // Salva resposta do bot no banco
-    await supabase.from('messages').insert({
-      conversation_id: queueItem.conversation_id,
-      sender_type: 'bot',
-      sender_name: 'Dify Bot',
-      content: difyResponse.answer,
-      message_type: 'text',
-      metadata: {
-        dify_message_id: difyResponse.message_id,
-        tokens_used: difyResponse.metadata.usage.total_tokens,
-        processed_manually: true,
-        queue_item_id: queueItem.id
-      }
-    });
-
-    // Atualiza conversa com conversation_id do Dify
-    const currentMetadata = conversation.metadata || {};
-    await supabase
-      .from('conversations')
-      .update({
-        metadata: {
-          ...currentMetadata,
-          dify_conversation_id: difyResponse.conversation_id,
-          last_dify_message: difyResponse.message_id,
-          last_processed_at: new Date().toISOString()
-        }
-      })
-      .eq('id', queueItem.conversation_id);
-
-    // Envia resposta via WhatsApp
-    console.log(`📱 Enviando resposta via WhatsApp para ${conversation.phone_number}`);
+    // Tentar enviar a mensagem via WhatsApp
+    console.log(`📱 Enviando mensagem para WhatsApp da Caroline...`);
     
     const { data: whatsappData, error: whatsappError } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: conversation.phone_number,
-        content: difyResponse.answer,
-        type: 'text'
+        content: botMessage.content,
+        type: 'text',
+        conversationId: conversation.id
       }
     });
 
     if (whatsappError) {
-      console.error('❌ Erro ao enviar WhatsApp:', whatsappError);
-    } else {
-      console.log('✅ WhatsApp enviado com sucesso');
+      console.error(`❌ Erro ao enviar via WhatsApp:`, whatsappError);
+      throw new Error(`WhatsApp send error: ${whatsappError.message || JSON.stringify(whatsappError)}`);
     }
 
-    // Marca como processado na fila
+    if (!whatsappData?.success) {
+      throw new Error(`WhatsApp send failed: ${whatsappData?.error || 'Unknown error'}`);
+    }
+
+    console.log(`✅ Mensagem enviada com sucesso para Caroline!`);
+    console.log(`📱 Message ID: ${whatsappData.message_id}`);
+
+    // Atualizar status da mensagem no banco
     await supabase
-      .from('message_queue')
-      .update({ 
-        status: 'sent',
-        processed_at: new Date().toISOString()
+      .from('messages')
+      .update({
+        metadata: {
+          ...botMessage.metadata,
+          whatsapp_sent: true,
+          whatsapp_message_id: whatsappData.message_id,
+          forced_reprocessing: true,
+          reprocessed_at: new Date().toISOString()
+        }
       })
-      .eq('id', queueItem.id);
+      .eq('id', botMessage.id);
 
     // Log de sucesso
     await supabase.from('system_logs').insert({
       type: 'info',
-      source: 'manual_processor',
-      message: 'Mensagem da Caroline processada manualmente com sucesso',
+      source: 'force_caroline_processing',
+      message: '✅ Mensagem da Caroline reenviada com sucesso',
       details: {
-        conversation_id: queueItem.conversation_id,
+        conversation_id: conversation.id,
         phone_number: conversation.phone_number,
-        message_id: difyResponse.message_id,
-        tokens_used: difyResponse.metadata.usage.total_tokens,
-        queue_item_id: queueItem.id
+        customer_name: conversation.customer_name,
+        message_id: botMessage.id,
+        whatsapp_message_id: whatsappData.message_id,
+        bot_response: botMessage.content.substring(0, 200)
       }
     });
 
-    console.log('🎯 Processamento manual concluído com sucesso!');
-
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       success: true,
-      message: 'Caroline message processed successfully',
-      dify_response: difyResponse.answer.substring(0, 200),
-      whatsapp_sent: !whatsappError
+      message: 'Mensagem da Caroline reenviada com sucesso',
+      details: {
+        conversation_id: conversation.id,
+        phone_number: conversation.phone_number,
+        whatsapp_message_id: whatsappData.message_id,
+        bot_response: botMessage.content
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('❌ Erro no processamento manual:', error);
+    console.error('❌ Erro ao forçar processamento da Caroline:', error);
     
-    return new Response(JSON.stringify({ 
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Log de erro
+    await supabase.from('system_logs').insert({
+      type: 'error',
+      source: 'force_caroline_processing',
+      message: '❌ Erro ao forçar reprocessamento da Caroline',
+      details: {
+        error: error.message,
+        stack: error.stack
+      }
+    });
+
+    return new Response(JSON.stringify({
       success: false,
-      error: error.message 
+      error: error.message
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

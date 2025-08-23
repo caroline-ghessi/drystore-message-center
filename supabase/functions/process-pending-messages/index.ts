@@ -293,21 +293,28 @@ serve(async (req) => {
 
 async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
   try {
-    const { error } = await supabase.functions.invoke('whatsapp-send', {
+    console.log(`📱 Tentando enviar via WhatsApp para ${phoneNumber}: "${message.substring(0, 100)}..."`);
+    
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        message: message,
+        content: message, // CORREÇÃO: usar 'content' ao invés de 'message'
         type: 'text'
       }
     });
 
     if (error) {
-      throw error;
+      console.error(`❌ Erro da função whatsapp-send:`, error);
+      throw new Error(`WhatsApp send error: ${error.message || JSON.stringify(error)}`);
     }
 
-    console.log(`WhatsApp reply sent to ${phoneNumber}`);
+    if (!data?.success) {
+      throw new Error(`WhatsApp send failed: ${data?.error || 'Unknown error'}`);
+    }
+
+    console.log(`✅ WhatsApp reply sent to ${phoneNumber} - Message ID: ${data.message_id}`);
   } catch (error) {
-    console.error('Error sending WhatsApp reply:', error);
+    console.error(`❌ Error sending WhatsApp reply to ${phoneNumber}:`, error);
     throw error;
   }
 }

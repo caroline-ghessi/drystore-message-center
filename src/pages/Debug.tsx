@@ -16,6 +16,7 @@ import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 import { DeliveryTestPanel } from "@/components/Debug/DeliveryTestPanel";
 import { DeliveryMonitorPanel } from "@/components/Debug/DeliveryMonitorPanel";
 import { WhapiSystemDiagnostic } from "@/components/Debug/WhapiSystemDiagnostic";
+import { BotMessageTester } from "@/components/Debug/BotMessageTester";
 
 export default function Debug() {
   return (
@@ -45,6 +46,7 @@ export default function Debug() {
         </TabsContent>
 
         <TabsContent value="conversations" className="space-y-6">
+          <BotMessageTester />
           <ConversationStatusMonitor />
           <BotFlowTester />
         </TabsContent>
