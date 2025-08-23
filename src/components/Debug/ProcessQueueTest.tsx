@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { AlertCircle, PlayCircle, CheckCircle } from 'lucide-react'
+import { AlertCircle, PlayCircle, CheckCircle, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/integrations/supabase/client'
 
@@ -145,20 +145,36 @@ export function ProcessQueueTest() {
           </div>
         )}
 
-        <div className="text-sm text-muted-foreground">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircle className="h-4 w-4" />
-            <strong>Status do Sistema:</strong>
+        <div className="space-y-4">
+          <div className="p-4 border border-destructive/50 rounded-lg bg-destructive/5">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              <h3 className="font-semibold text-destructive">Sistema com Problemas Críticos</h3>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                <strong>PROBLEMA IDENTIFICADO:</strong> Sistema de mensagens travado com 400+ conversas paradas
+              </p>
+              <p className="text-muted-foreground">
+                <strong>SOLUÇÃO IMPLEMENTADA:</strong> Processamento em lotes para evitar timeout
+              </p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                <li>Correção de constraints de auditoria do sistema</li>
+                <li>Processamento de conversas em lotes de 50 (evita timeout)</li>
+                <li>Reprocessamento de mensagens pendentes na fila</li>
+                <li>Recriação do cron job para funcionamento automático</li>
+              </ul>
+            </div>
           </div>
-          <ul className="list-disc list-inside space-y-1 ml-6">
-            <li className="text-red-600">❌ Conversas bloqueadas (status sent_to_seller com fallback_mode)</li>
-            <li className="text-red-600">❌ 10+ mensagens pendentes há dias</li>
-            <li className="text-red-600">❌ Cron job não está executando de fato</li>
-            <li className="text-red-600">❌ Dify não está recebendo mensagens</li>
-          </ul>
-          <div className="mt-3 p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
-            <p className="text-red-700 dark:text-red-300 font-semibold">
-              🚨 AÇÃO NECESSÁRIA: Clique em "CORREÇÃO COMPLETA" para resolver todos os problemas
+          
+          <div className="p-4 border border-primary/50 rounded-lg bg-primary/5">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <h3 className="font-semibold text-primary">Correção Completa Melhorada</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              A correção agora processa conversas gradualmente para evitar erros de timeout.
+              Monitore o progresso através dos logs detalhados.
             </p>
           </div>
         </div>

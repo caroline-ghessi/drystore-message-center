@@ -23,7 +23,7 @@ export type Database = {
           old_values: Json | null
           record_id: string | null
           table_name: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           action: string
@@ -33,7 +33,7 @@ export type Database = {
           old_values?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           action?: string
@@ -43,7 +43,7 @@ export type Database = {
           old_values?: Json | null
           record_id?: string | null
           table_name?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1436,6 +1436,14 @@ export type Database = {
           user_email: string
         }
         Returns: string
+      }
+      reset_conversations_batch: {
+        Args: { batch_size?: number }
+        Returns: {
+          batch_number: number
+          conversations_reset: number
+          total_remaining: number
+        }[]
       }
     }
     Enums: {

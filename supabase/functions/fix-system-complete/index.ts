@@ -21,37 +21,36 @@ serve(async (req) => {
 
     const results = [];
 
-    // FASE 1: Resetar conversas com problema
-    console.log('📊 FASE 1: Resetando conversas...');
+    // FASE 1: Resetar conversas em lotes (para evitar timeout)
+    console.log('📊 FASE 1: Resetando conversas em lotes...');
     try {
-      const { data: conversations, error: convError } = await supabase
-        .from('conversations')
-        .update({
-          status: 'bot_attending',
-          fallback_mode: false,
-          fallback_taken_by: null,
-          updated_at: new Date().toISOString()
-        })
-        .or('status.eq.sent_to_seller,and(fallback_mode.eq.true)')
-        .select('id, customer_name, status');
+      // Usar a função de processamento em lotes
+      const { data: batchResults, error: batchError } = await supabase
+        .rpc('reset_conversations_batch', { batch_size: 50 });
 
-      if (convError) {
-        console.error('❌ Erro ao resetar conversas:', convError);
-        results.push(`❌ Erro ao resetar conversas: ${convError.message}`);
+      if (batchError) {
+        console.error('❌ Erro ao resetar conversas em lotes:', batchError);
+        results.push(`❌ Erro ao resetar conversas: ${batchError.message}`);
       } else {
-        const count = conversations?.length || 0;
-        console.log(`✅ ${count} conversas resetadas para bot_attending`);
-        results.push(`✅ ${count} conversas resetadas`);
+        let totalReset = 0;
+        if (batchResults && batchResults.length > 0) {
+          for (const batch of batchResults) {
+            totalReset += batch.conversations_reset;
+            console.log(`✅ Lote ${batch.batch_number}: ${batch.conversations_reset} conversas resetadas, ${batch.total_remaining} restantes`);
+          }
+        }
+        console.log(`✅ Total de ${totalReset} conversas resetadas em ${batchResults?.length || 0} lotes`);
+        results.push(`✅ ${totalReset} conversas resetadas em lotes`);
       }
     } catch (error) {
       console.error('❌ Erro na fase 1:', error);
       results.push(`❌ Fase 1 falhou: ${error.message}`);
     }
 
-    // FASE 2: Forçar processamento das mensagens na fila
-    console.log('📨 FASE 2: Processando mensagens pendentes...');
+    // FASE 2: Forçar processamento das mensagens na fila em lotes
+    console.log('📨 FASE 2: Processando mensagens pendentes em lotes...');
     try {
-      // Processar diretamente mensagens aguardando há mais de 1 minuto
+      // Primeiro, marcar mensagens antigas para reprocessamento imediato
       const { data: oldMessages, error: updateError } = await supabase
         .from('message_queue')
         .update({
@@ -69,6 +68,23 @@ serve(async (req) => {
         const count = oldMessages?.length || 0;
         console.log(`✅ ${count} mensagens marcadas para reprocessamento`);
         results.push(`✅ ${count} mensagens reprocessadas`);
+        
+        // Se há mensagens para processar, invocar o processador
+        if (count > 0) {
+          try {
+            const { data: processResult, error: processError } = await supabase.functions.invoke('process-message-queue', {
+              body: { auto_run: true, max_messages: 50 }
+            });
+            
+            if (processError) {
+              console.log('⚠️ Aviso no processamento de mensagens:', processError.message);
+            } else {
+              console.log('✅ Processamento de mensagens iniciado:', processResult);
+            }
+          } catch (processErr) {
+            console.log('⚠️ Erro ao invocar processador:', processErr.message);
+          }
+        }
       }
     } catch (error) {
       console.error('❌ Erro na fase 2:', error);
