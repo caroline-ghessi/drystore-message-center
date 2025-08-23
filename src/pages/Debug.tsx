@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { MediaRetryTest } from "@/components/Debug/MediaRetryTest";
 import { QueueMonitor } from "@/components/Debug/QueueMonitor";
+import { ProcessQueueTest } from "@/components/Debug/ProcessQueueTest";
 import { ConversationStatusMonitor } from "@/components/Debug/ConversationStatusMonitor";
 import { BotFlowTester } from "@/components/Debug/BotFlowTester";
 import { MessageDeliveryMonitor } from "@/components/Debug/MessageDeliveryMonitor";
@@ -63,6 +64,7 @@ export default function Debug() {
         </TabsContent>
 
         <TabsContent value="queue" className="space-y-6">
+          <ProcessQueueTest />
           <QueueMonitor />
         </TabsContent>
 
