@@ -3,21 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAuthSecurity } from "@/hooks/useAuthSecurity";
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 export default function Index() {
-  const { user, loading: authLoading } = useAuth();
-  const { hasAccess, loading: securityLoading } = useAuthSecurity();
-  const navigate = useNavigate();
-
-  // Redirect authenticated users with access directly to dashboard
-  useEffect(() => {
-    if (!authLoading && !securityLoading && user && hasAccess) {
-      navigate('/dashboard');
-    }
-  }, [user, hasAccess, authLoading, securityLoading, navigate]);
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-drystore-gray-light to-white">
@@ -39,16 +27,26 @@ export default function Index() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button asChild size="lg" className="bg-gradient-primary hover:opacity-90">
-              <Link to="/login">
-                Fazer Login
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/login">
-                Criar Conta
-              </Link>
-            </Button>
+            {user ? (
+              <Button asChild size="lg" className="bg-gradient-primary hover:opacity-90">
+                <Link to="/dashboard">
+                  Acessar Dashboard
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild size="lg" className="bg-gradient-primary hover:opacity-90">
+                  <Link to="/login">
+                    Fazer Login
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                  <Link to="/login">
+                    Criar Conta
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

@@ -108,9 +108,9 @@ serve(async (req) => {
           continue;
         }
 
-        // Verifica se ainda está em modo bot (não está em fallback e não foi finalizada)
-        if (conversation.fallback_mode || conversation.status === 'finished') {
-          console.log(`Conversation ${messageItem.conversation_id} not available for bot processing (fallback: ${conversation.fallback_mode}, status: ${conversation.status}), marking as processed`);
+        // Verifica se ainda está em modo bot
+        if (conversation.fallback_mode || conversation.status !== 'bot_attending') {
+          console.log(`Conversation ${messageItem.conversation_id} not in bot mode, marking as processed`);
           
           // Marca como processada (não precisa enviar para Dify)
           await supabase
@@ -293,28 +293,21 @@ serve(async (req) => {
 
 async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
   try {
-    console.log(`📱 Tentando enviar via WhatsApp para ${phoneNumber}: "${message.substring(0, 100)}..."`);
-    
-    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+    const { error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        content: message, // CORREÇÃO: usar 'content' ao invés de 'message'
+        message: message,
         type: 'text'
       }
     });
 
     if (error) {
-      console.error(`❌ Erro da função whatsapp-send:`, error);
-      throw new Error(`WhatsApp send error: ${error.message || JSON.stringify(error)}`);
+      throw error;
     }
 
-    if (!data?.success) {
-      throw new Error(`WhatsApp send failed: ${data?.error || 'Unknown error'}`);
-    }
-
-    console.log(`✅ WhatsApp reply sent to ${phoneNumber} - Message ID: ${data.message_id}`);
+    console.log(`WhatsApp reply sent to ${phoneNumber}`);
   } catch (error) {
-    console.error(`❌ Error sending WhatsApp reply to ${phoneNumber}:`, error);
+    console.error('Error sending WhatsApp reply:', error);
     throw error;
   }
 }

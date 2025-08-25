@@ -13,10 +13,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.whapi-send]
-verify_jwt = true
+verify_jwt = false
 
 [functions.whapi-configure]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-inactive-conversations]
 verify_jwt = false
@@ -25,40 +25,22 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.intelligent-transfer-orchestrator]
-verify_jwt = true
+verify_jwt = false
 
 [functions.validate-whapi-token]
-verify_jwt = true
+verify_jwt = false
 
 [functions.diagnose-whapi-system]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-lead-to-seller]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-alert-to-managers]
-verify_jwt = true
+verify_jwt = false
 
 [functions.test-seller-delivery]
-verify_jwt = true
+verify_jwt = false
 
 [functions.get-secret]
-verify_jwt = true
-
-[functions.process-message-queue]
-verify_jwt = false
-
-[functions.dify-process-messages]
-verify_jwt = false
-
-[functions.check-pending-bot-messages]
-verify_jwt = false
-
-[functions.manual-process-queue]
-verify_jwt = true
-
-[functions.queue-scheduler]
-verify_jwt = false
-
-[functions.simple-test]
 verify_jwt = false

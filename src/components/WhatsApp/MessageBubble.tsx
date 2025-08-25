@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
-import { Play, Pause, Download, FileText, MapPin, Loader2, AlertTriangle, Volume2, Eye } from "lucide-react";
+import { Play, Pause, Download, FileText, MapPin, Loader2, AlertTriangle, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { useState, useRef, useEffect } from "react";
 
 export type MessageType = 'text' | 'audio' | 'image' | 'video' | 'document' | 'location' | 'voice';
@@ -33,10 +32,7 @@ export function MessageBubble({
   const [duration, setDuration] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isViewing, setIsViewing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const { toast } = useToast();
   
   const isFromCustomer = sender_type === 'customer';
   const isFromBot = sender_type === 'bot';
@@ -73,93 +69,13 @@ export function MessageBubble({
     }
   };
 
-  // Extrair nome do arquivo do content ou metadata
-  const extractFileName = (content: string, metadata?: any): string => {
-    // Tentar extrair do content no formato "[Documento: filename.pdf]"
-    const documentMatch = content.match(/\[Documento: (.+?)\]/);
-    if (documentMatch && documentMatch[1]) {
-      return documentMatch[1];
-    }
-    
-    // Fallback para metadata ou content direto ou nome padrão
-    return metadata?.file_name || content || 'Documento';
-  };
-
-  const handleDownload = async (url: string, filename: string) => {
-    setIsDownloading(true);
-    
-    try {
-      // Tentar baixar via fetch + blob para contornar CORS
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Limpar o blob URL depois de um tempo
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-      
-      toast({
-        title: "Download concluído",
-        description: `${filename} foi baixado com sucesso.`,
-      });
-      
-    } catch (error) {
-      console.error('Erro no download:', error);
-      
-      toast({
-        title: "Erro no download",
-        description: "Tentando abrir arquivo em nova aba...",
-        variant: "destructive",
-      });
-      
-      // Fallback: tentar abrir em nova aba
-      try {
-        window.open(url, '_blank');
-      } catch (fallbackError) {
-        toast({
-          title: "Erro",
-          description: "Não foi possível baixar ou abrir o arquivo.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  const handleView = async (url: string, filename: string) => {
-    setIsViewing(true);
-    
-    try {
-      // Abrir em nova aba para visualização
-      window.open(url, '_blank');
-      
-      toast({
-        title: "Arquivo aberto",
-        description: `${filename} foi aberto em nova aba.`,
-      });
-    } catch (error) {
-      console.error('Erro ao abrir arquivo:', error);
-      
-      toast({
-        title: "Erro",
-        description: "Não foi possível abrir o arquivo.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsViewing(false);
-    }
+  const handleDownload = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   useEffect(() => {
@@ -304,10 +220,9 @@ export function MessageBubble({
         if (isMediaProcessing) return renderMediaProcessingState();
         if (mediaProcessingFailed) return renderMediaFailedState();
         
-        const fileName = extractFileName(content, metadata);
+        const fileName = metadata?.file_name || content || 'Documento';
         const fileSize = metadata?.file_size ? `${Math.round(metadata.file_size / 1024)} KB` : '';
         const mimeType = metadata?.mime_type || '';
-        const isPDF = mimeType.includes('pdf') || fileName.toLowerCase().endsWith('.pdf');
         
         return (
           <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg max-w-xs">
@@ -320,39 +235,14 @@ export function MessageBubble({
               </div>
             </div>
             {isValidMediaUrl && (
-              <div className="flex space-x-1 flex-shrink-0">
-                {/* Botão Visualizar */}
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-8 w-8 p-0"
-                  onClick={() => handleView(media_url!, fileName)}
-                  disabled={isViewing}
-                  title="Visualizar arquivo"
-                >
-                  {isViewing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-                
-                {/* Botão Baixar */}
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-8 w-8 p-0"
-                  onClick={() => handleDownload(media_url!, fileName)}
-                  disabled={isDownloading}
-                  title="Baixar arquivo"
-                >
-                  {isDownloading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="h-8 w-8 p-0 flex-shrink-0"
+                onClick={() => handleDownload(media_url!, fileName)}
+              >
+                <Download className="h-4 w-4" />
+              </Button>
             )}
           </div>
         );

@@ -6,28 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Rate limiting - simple in-memory store (in production, use Redis)
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_REQUESTS = 100; // 100 requests per minute
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const clientData = rateLimitStore.get(ip);
-  
-  if (!clientData || now > clientData.resetTime) {
-    rateLimitStore.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  
-  if (clientData.count >= RATE_LIMIT_REQUESTS) {
-    return false;
-  }
-  
-  clientData.count++;
-  return true;
-}
-
 interface WebhookMessage {
   object: string;
   entry: Array<{
@@ -84,21 +62,6 @@ serve(async (req) => {
   );
 
   try {
-    // Get client IP for rate limiting
-    const clientIP = req.headers.get('cf-connecting-ip') || 
-                     req.headers.get('x-forwarded-for')?.split(',')[0] || 
-                     req.headers.get('x-real-ip') || 
-                     '127.0.0.1';
-
-    // Apply rate limiting
-    if (!checkRateLimit(clientIP)) {
-      console.warn(`Rate limit exceeded for IP: ${clientIP}`);
-      return new Response('Rate limit exceeded', { 
-        status: 429, 
-        headers: corsHeaders 
-      });
-    }
-
     const url = new URL(req.url);
     
     // Handle webhook verification (GET request)
@@ -166,9 +129,20 @@ serve(async (req) => {
           if (change.field === 'messages') {
             const processResult = await processMessages(supabase, change.value);
             
-            // Mensagem já foi adicionada à message_queue no processMessages
-            // O processamento será feito pelo processo periódico
-            console.log(`Message queued for processing: ${processResult?.conversation_id}`);
+            // Se a mensagem foi salva com sucesso, processar com Dify
+            if (processResult?.conversation_id && processResult?.content) {
+              try {
+                await supabase.functions.invoke('dify-process-messages', {
+                  body: {
+                    conversationId: processResult.conversation_id,
+                    phoneNumber: processResult.phone_number,
+                    messageContent: processResult.content
+                  }
+                });
+              } catch (error) {
+                console.error('Error invoking Dify processing:', error);
+              }
+            }
           }
         }
       }
@@ -302,37 +276,11 @@ async function processMessages(supabase: any, value: any) {
     }
 
     // Add to message queue for batching
-    // Verifica se já existe uma entrada pendente para esta conversa
-    const { data: existingQueue } = await supabase
-      .from('message_queue')
-      .select('*')
-      .eq('conversation_id', conversation.id)
-      .eq('status', 'waiting')
-      .single();
-
-    if (existingQueue) {
-      // Atualiza a entrada existente, adicionando a nova mensagem
-      const updatedMessages = [...(existingQueue.messages_content || []), content];
-      await supabase
-        .from('message_queue')
-        .update({
-          messages_content: updatedMessages,
-          scheduled_for: new Date(Date.now() + 60000).toISOString() // Reagenda para 1 minuto
-        })
-        .eq('id', existingQueue.id);
-      
-      console.log(`Message added to existing queue for conversation ${conversation.id}`);
-    } else {
-      // Cria nova entrada na fila
-      await supabase.from('message_queue').insert({
-        conversation_id: conversation.id,
-        messages_content: [content],
-        status: 'waiting',
-        scheduled_for: new Date(Date.now() + 60000).toISOString() // Agenda para 1 minuto
-      });
-      
-      console.log(`New message queue created for conversation ${conversation.id}`);
-    }
+    await supabase.from('message_queue').insert({
+      conversation_id: conversation.id,
+      messages_content: [content],
+      status: 'waiting'
+    });
 
     console.log(`Message processed for conversation ${conversation.id}`);
     
