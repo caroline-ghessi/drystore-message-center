@@ -35,7 +35,7 @@ serve(async (req) => {
     // Log the cleanup
     await supabase.from('system_logs').insert({
       type: 'info',
-      source: 'maintenance',
+      source: 'dify',
       message: 'Mensagens inválidas removidas da fila de processamento',
       details: {
         success: true,
