@@ -7,13 +7,46 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string | null
+          table_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string | null
+          table_name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       client_types: {
         Row: {
           active: boolean | null
@@ -49,6 +82,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          assigned_operator_id: string | null
           assigned_seller_id: string | null
           created_at: string | null
           customer_name: string | null
@@ -61,6 +95,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          assigned_operator_id?: string | null
           assigned_seller_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -73,6 +108,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          assigned_operator_id?: string | null
           assigned_seller_id?: string | null
           created_at?: string | null
           customer_name?: string | null
@@ -100,6 +136,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conversations_assigned_seller_id_fkey"
+            columns: ["assigned_seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conversations_fallback_taken_by_fkey"
             columns: ["fallback_taken_by"]
             isOneToOne: false
@@ -107,6 +150,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      data_access_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          record_id: string | null
+          sensitive_fields: string[] | null
+          table_name: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          record_id?: string | null
+          sensitive_fields?: string[] | null
+          table_name: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          record_id?: string | null
+          sensitive_fields?: string[] | null
+          table_name?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       integrations: {
         Row: {
@@ -216,6 +289,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "leads_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       message_queue: {
@@ -223,8 +303,11 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           id: string
+          last_error: string | null
+          max_retries: number | null
           messages_content: string[] | null
           processed_at: string | null
+          retry_count: number | null
           scheduled_for: string | null
           status: string | null
         }
@@ -232,8 +315,11 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           id?: string
+          last_error?: string | null
+          max_retries?: number | null
           messages_content?: string[] | null
           processed_at?: string | null
+          retry_count?: number | null
           scheduled_for?: string | null
           status?: string | null
         }
@@ -241,8 +327,11 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           id?: string
+          last_error?: string | null
+          max_retries?: number | null
           messages_content?: string[] | null
           processed_at?: string | null
+          retry_count?: number | null
           scheduled_for?: string | null
           status?: string | null
         }
@@ -461,7 +550,41 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quality_analyses_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      security_rate_limits: {
+        Row: {
+          action_type: string
+          attempt_count: number | null
+          created_at: string | null
+          id: string
+          user_id: string
+          window_start: string | null
+        }
+        Insert: {
+          action_type: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id: string
+          window_start?: string | null
+        }
+        Update: {
+          action_type?: string
+          attempt_count?: number | null
+          created_at?: string | null
+          id?: string
+          user_id?: string
+          window_start?: string | null
+        }
+        Relationships: []
       }
       seller_performance_metrics: {
         Row: {
@@ -512,6 +635,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "seller_performance_metrics_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       seller_skills: {
@@ -560,6 +690,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "seller_skills_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       seller_specialties: {
@@ -606,6 +743,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "seller_specialties_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sellers: {
@@ -631,7 +775,7 @@ export type Database = {
           whapi_error_message: string | null
           whapi_last_test: string | null
           whapi_status: string | null
-          whapi_token: string | null
+          whapi_token_secret_name: string | null
           whapi_webhook: string | null
           whapi_webhook_url: string | null
         }
@@ -657,7 +801,7 @@ export type Database = {
           whapi_error_message?: string | null
           whapi_last_test?: string | null
           whapi_status?: string | null
-          whapi_token?: string | null
+          whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null
         }
@@ -683,7 +827,7 @@ export type Database = {
           whapi_error_message?: string | null
           whapi_last_test?: string | null
           whapi_status?: string | null
-          whapi_token?: string | null
+          whapi_token_secret_name?: string | null
           whapi_webhook?: string | null
           whapi_webhook_url?: string | null
         }
@@ -724,6 +868,7 @@ export type Database = {
           message: string
           source: string
           type: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -732,6 +877,7 @@ export type Database = {
           message: string
           source: string
           type: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -740,6 +886,64 @@ export type Database = {
           message?: string
           source?: string
           type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_registrations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string | null
+          email: string
+          id: string
+          metadata: Json | null
+          requested_at: string | null
+          requested_role: Database["public"]["Enums"]["app_role"] | null
+          status: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          email: string
+          id?: string
+          metadata?: Json | null
+          requested_at?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+          status?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          metadata?: Json | null
+          requested_at?: string | null
+          requested_role?: Database["public"]["Enums"]["app_role"] | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
         }
         Relationships: []
       }
@@ -840,6 +1044,13 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whapi_configurations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
       whapi_logs: {
@@ -926,12 +1137,20 @@ export type Database = {
             referencedRelation: "sellers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whapi_logs_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
       conversations_with_last_message: {
         Row: {
+          assigned_operator_id: string | null
           assigned_seller_id: string | null
           created_at: string | null
           customer_name: string | null
@@ -963,6 +1182,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "conversations_assigned_seller_id_fkey"
+            columns: ["assigned_seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers_basic_info"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "conversations_fallback_taken_by_fkey"
             columns: ["fallback_taken_by"]
             isOneToOne: false
@@ -984,31 +1210,267 @@ export type Database = {
         }
         Relationships: []
       }
+      sellers_basic_info: {
+        Row: {
+          active: boolean | null
+          conversion_rate: number | null
+          created_at: string | null
+          current_workload: number | null
+          experience_years: number | null
+          id: string | null
+          max_concurrent_leads: number | null
+          name: string | null
+          performance_score: number | null
+          personality_type: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          current_workload?: number | null
+          experience_years?: number | null
+          id?: string | null
+          max_concurrent_leads?: number | null
+          name?: string | null
+          performance_score?: number | null
+          personality_type?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          current_workload?: number | null
+          experience_years?: number | null
+          id?: string | null
+          max_concurrent_leads?: number | null
+          name?: string | null
+          performance_score?: number | null
+          personality_type?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      approve_user_access: {
+        Args: { approve?: boolean; registration_id_param: string }
+        Returns: boolean
+      }
+      audit_access_attempt: {
+        Args: {
+          approval_status_param: string
+          email_param: string
+          has_access_param: boolean
+          roles_param: string[]
+          timestamp_param: string
+          user_id_param: string
+        }
+        Returns: undefined
+      }
+      audit_security_event: {
+        Args: {
+          details?: Json
+          event_type: string
+          record_id: string
+          table_name: string
+        }
+        Returns: undefined
+      }
+      audit_sensitive_data_access: {
+        Args: {
+          accessed_fields: string[]
+          record_id_param: string
+          table_name_param: string
+        }
+        Returns: undefined
+      }
+      can_access_customer_data: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
+      can_access_seller_data: {
+        Args: { target_seller_id: string; user_uuid: string }
+        Returns: boolean
+      }
+      can_access_unassigned_conversations: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
+      check_rate_limit: {
+        Args: {
+          action_type_param: string
+          max_attempts?: number
+          user_id_param: string
+          window_minutes?: number
+        }
+        Returns: boolean
+      }
+      cleanup_invalid_queue_messages: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      cleanup_message_queue: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_data: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      create_message_queue_cron: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      get_conversation_with_logging: {
+        Args: { conversation_id: string }
+        Returns: {
+          assigned_operator_id: string
+          assigned_seller_id: string
+          created_at: string
+          customer_name: string
+          id: string
+          phone_number: string
+          status: string
+          updated_at: string
+        }[]
+      }
       get_dashboard_stats: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_integration_config_secure: {
+        Args: { integration_type_param: string }
+        Returns: {
+          active: boolean
+          config: Json
+        }[]
+      }
+      get_masked_customer_phone: {
+        Args: { phone_number: string }
+        Returns: string
+      }
+      get_masked_phone: {
+        Args: { phone_number: string }
+        Returns: string
       }
       get_seller_conversations: {
         Args: { seller_uuid: string }
         Returns: {
           conversation_id: string
           customer_name: string
-          phone_number: string
           last_message: string
           last_message_at: string
+          phone_number: string
           status: string
           total_messages: number
         }[]
+      }
+      get_seller_dashboard_safe: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active: boolean
+          active_leads: number
+          avg_quality_score: number
+          id: string
+          name: string
+          total_leads: number
+          total_revenue: number
+          total_sales: number
+        }[]
+      }
+      get_sellers_basic_info_safe: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          active: boolean
+          conversion_rate: number
+          created_at: string
+          current_workload: number
+          experience_years: number
+          id: string
+          max_concurrent_leads: number
+          name: string
+          performance_score: number
+          personality_type: string
+        }[]
+      }
+      get_user_role: {
+        Args: { user_uuid?: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_user_role_safe: {
+        Args: { user_uuid?: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      get_whapi_token_secret_name: {
+        Args: { seller_id_param: string }
+        Returns: string
+      }
+      has_role: {
+        Args: {
+          required_role: Database["public"]["Enums"]["app_role"]
+          user_uuid: string
+        }
+        Returns: boolean
+      }
+      log_data_access: {
+        Args: {
+          record_id: string
+          sensitive_fields: string[]
+          table_name: string
+        }
+        Returns: undefined
+      }
+      log_rls_access_failure: {
+        Args: {
+          details_param?: Json
+          operation_param: string
+          table_name_param: string
+        }
+        Returns: undefined
+      }
+      mask_phone_for_role: {
+        Args: {
+          phone: string
+          user_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
+      }
+      mask_phone_number: {
+        Args: {
+          phone: string
+          user_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
+      }
+      process_caroline_message: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       process_message_queue: {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      remove_message_queue_crons: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      request_user_access: {
+        Args: {
+          requested_role_param?: Database["public"]["Enums"]["app_role"]
+          user_email: string
+        }
+        Returns: string
+      }
+      reset_conversations_batch: {
+        Args: { batch_size?: number }
+        Returns: {
+          batch_number: number
+          conversations_reset: number
+          total_remaining: number
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "operator" | "seller"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1135,6 +1597,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "operator", "seller"],
+    },
   },
 } as const
