@@ -271,7 +271,7 @@ async function sendWhatsAppReply(phoneNumber: string, message: string, supabase:
     const { error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
-        message: message,
+        content: message,
         type: 'text'
       }
     });
