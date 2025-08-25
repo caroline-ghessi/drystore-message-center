@@ -32,7 +32,7 @@ interface FormData {
   experience_years: number;
   personality_type: string;
   max_concurrent_leads: number;
-  whapi_token: string;
+  whapi_token_secret_name: string;
   auto_first_message: boolean;
   avatar_url?: string;
 }
@@ -48,7 +48,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
       experience_years: 0,
       personality_type: "consultivo",
       max_concurrent_leads: 10,
-      whapi_token: "",
+      whapi_token_secret_name: "",
       auto_first_message: false,
     }
   });
@@ -127,7 +127,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
         experience_years: deletedSeller.experience_years || 0,
         personality_type: deletedSeller.personality_type || "consultivo",
         max_concurrent_leads: deletedSeller.max_concurrent_leads || 10,
-        whapi_token: deletedSeller.whapi_token || "",
+        whapi_token_secret_name: deletedSeller.whapi_token_secret_name || "",
         auto_first_message: deletedSeller.auto_first_message || false,
         avatar_url: deletedSeller.avatar_url || "",
       });
@@ -476,7 +476,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
 
                 <FormField
                   control={form.control}
-                  name="whapi_token"
+                  name="whapi_token_secret_name"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-sm sm:text-base">Token WHAPI</FormLabel>
