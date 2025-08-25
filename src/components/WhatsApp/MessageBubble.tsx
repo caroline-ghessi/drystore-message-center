@@ -69,13 +69,30 @@ export function MessageBubble({
     }
   };
 
-  const handleDownload = (url: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Falha no download');
+      
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpar URL após download
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+    } catch (error) {
+      console.error('Erro no download:', error);
+      // Fallback: abrir em nova aba
+      window.open(url, '_blank');
+    }
   };
 
   useEffect(() => {
