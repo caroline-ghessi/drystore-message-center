@@ -143,21 +143,24 @@ async function processBufferedMessages(
     console.log(`📨 Total de mensagens agrupadas: ${buffer.messages.length}`);
     console.log(`💬 Conteúdo agrupado: "${groupedMessage.substring(0, 100)}..."`);
 
-    // Busca configuração do Dify
-    const { data: integration, error: integrationError } = await supabase
-      .from('integrations')
-      .select('config, active')
-      .eq('type', 'dify')
-      .single();
+    // Buscar configuração do Dify usando função segura
+    const { data: integrationData, error: integrationError } = await supabase
+      .rpc('get_integration_config_secure', { integration_type_param: 'dify' });
 
-    console.log('Dify integration found:', integration);
+    if (integrationError || !integrationData || integrationData.length === 0) {
+      console.error('❌ Erro ao acessar configuração Dify:', integrationError);
+      throw new Error('Integração Dify não acessível (RLS)');
+    }
 
-    if (integrationError || !integration) {
-      throw new Error(`Dify integration not found: ${integrationError?.message || 'No integration data'}`);
+    const integration = integrationData[0];
+    if (!integration?.config) {
+      console.error('❌ Configuração Dify vazia');
+      throw new Error('Configuração Dify vazia');
     }
 
     if (!integration.active) {
-      throw new Error('Dify integration is not active');
+      console.error('❌ Integração Dify não ativa');
+      throw new Error('Integração Dify não ativa');
     }
 
     if (!integration.config?.api_url) {

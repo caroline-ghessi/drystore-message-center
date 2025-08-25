@@ -80,19 +80,75 @@ serve(async (req) => {
 
     console.log(`📨 Encontradas ${pendingMessages.length} conversas com mensagens pendentes`);
 
-    // Verifica configuração do Dify
-    const { data: integration, error: integrationError } = await supabase
-      .from('integrations')
-      .select('config, active')
-      .eq('type', 'dify')
-      .single();
+    // Buscar configuração do Dify usando função segura
+    const { data: integrationData, error: integrationError } = await supabase
+      .rpc('get_integration_config_secure', { integration_type_param: 'dify' });
 
-    if (integrationError || !integration) {
-      throw new Error(`Dify integration not found: ${integrationError?.message || 'No integration data'}`);
+    if (integrationError || !integrationData || integrationData.length === 0) {
+      console.error('❌ Erro ao acessar configuração Dify:', integrationError);
+      
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'process-message-queue',
+        message: 'Falha de acesso RLS à integração Dify',
+        details: { 
+          error: integrationError?.message,
+          timestamp: new Date().toISOString() 
+        }
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Integração Dify não acessível (RLS)',
+        processed: 0,
+        errors: 1,
+        total_found: pendingMessages.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const integration = integrationData[0];
+    if (!integration?.config) {
+      console.error('❌ Configuração Dify vazia');
+      
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'process-message-queue',
+        message: 'Configuração Dify vazia',
+        details: { timestamp: new Date().toISOString() }
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Configuração Dify vazia',
+        processed: 0,
+        errors: 1,
+        total_found: pendingMessages.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (!integration.active) {
-      throw new Error('Dify integration is not active');
+      console.error('❌ Integração Dify não ativa');
+      
+      await supabase.from('system_logs').insert({
+        type: 'error',
+        source: 'process-message-queue',
+        message: 'Integração Dify não ativa',
+        details: { timestamp: new Date().toISOString() }
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Integração Dify não ativa',
+        processed: 0,
+        errors: 1,
+        total_found: pendingMessages.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const config = integration.config as { api_url: string };

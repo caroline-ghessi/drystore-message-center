@@ -49,14 +49,16 @@ serve(async (req) => {
 
     const { message, conversationId, userId, files, hasFiles } = await req.json();
 
-    // Busca configuração do Dify
-    const { data: integration } = await supabase
-      .from('integrations')
-      .select('config, active')
-      .eq('type', 'dify')
-      .eq('active', true)
-      .single();
+    // Busca configuração do Dify usando função segura
+    const { data: integrationData, error: integrationError } = await supabase
+      .rpc('get_integration_config_secure', { integration_type_param: 'dify' });
 
+    if (integrationError || !integrationData || integrationData.length === 0) {
+      console.error('Erro ao buscar configuração Dify:', integrationError);
+      throw new Error('Dify integration not configured or accessible');
+    }
+
+    const integration = integrationData[0];
     if (!integration?.config) {
       throw new Error('Dify integration not configured');
     }

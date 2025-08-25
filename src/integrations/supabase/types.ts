@@ -1337,6 +1337,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: Json
       }
+      get_integration_config_secure: {
+        Args: { integration_type_param: string }
+        Returns: {
+          active: boolean
+          config: Json
+        }[]
+      }
       get_masked_customer_phone: {
         Args: { phone_number: string }
         Returns: string
@@ -1409,6 +1416,14 @@ export type Database = {
           record_id: string
           sensitive_fields: string[]
           table_name: string
+        }
+        Returns: undefined
+      }
+      log_rls_access_failure: {
+        Args: {
+          details_param?: Json
+          operation_param: string
+          table_name_param: string
         }
         Returns: undefined
       }
