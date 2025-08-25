@@ -371,7 +371,7 @@ export default function SellerProfileForm({ sellerId, initialData, onSuccess }: 
                   <SelectContent>
                     <SelectItem value="soft">Soft Skill</SelectItem>
                     <SelectItem value="technical">Técnica</SelectItem>
-                    <SelectItem value="product">Produto</SelectItem>
+                    <SelectItem value="hard">Produto</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
