@@ -275,12 +275,16 @@ async function processMessages(supabase: any, value: any) {
       }));
     }
 
-    // Add to message queue for batching
-    await supabase.from('message_queue').insert({
-      conversation_id: conversation.id,
-      messages_content: [content],
-      status: 'waiting'
-    });
+    // Add to message queue for batching only if not in fallback mode and bot is attending
+    if (!conversation.fallback_mode && conversation.status === 'bot_attending') {
+      await supabase.from('message_queue').insert({
+        conversation_id: conversation.id,
+        messages_content: [content],
+        status: 'waiting'
+      });
+    } else {
+      console.log(`Skipping queue insertion for conversation ${conversation.id} - fallback_mode: ${conversation.fallback_mode}, status: ${conversation.status}`);
+    }
 
     console.log(`Message processed for conversation ${conversation.id}`);
     
