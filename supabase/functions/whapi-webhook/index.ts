@@ -88,108 +88,90 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Extrair seller_id do path da URL ou query parameter
+    const body = await req.json()
+    console.log('📥 WHAPI Webhook recebido:', JSON.stringify(body, null, 2))
+
+    // Extrair seller_id da URL se presente
     const url = new URL(req.url)
-    
-    // 1️⃣ Tentar extrair seller_id do path da URL (último segmento)
-    const pathSegments = url.pathname.split('/').filter(Boolean)
-    let sellerId = null
-    
-    // Se temos mais de 3 segmentos, o último pode ser o seller_id
-    if (pathSegments.length > 3) {
-      const lastSegment = pathSegments[pathSegments.length - 1]
-      // Verificar se parece com um UUID (36 caracteres com hifens)
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)) {
-        sellerId = lastSegment
-        console.log('📍 Seller ID extraído do path da URL:', sellerId)
-      }
-    }
-    
-    // 2️⃣ Fallback: tentar extrair do query parameter
-    if (!sellerId) {
-      sellerId = url.searchParams.get('seller_id')
-      if (sellerId) {
-        console.log('📍 Seller ID extraído do query parameter:', sellerId)
-      }
-    }
+    const pathParts = url.pathname.split('/')
+    const sellerId = pathParts[pathParts.length - 1] // último segmento da URL
 
-    const webhook: WhapiWebhook = await req.json()
-    console.log('WHAPI Webhook recebido:', JSON.stringify(webhook, null, 2))
-    
-    if (sellerId) {
-      console.log('Webhook direcionado para vendedor:', sellerId)
-    }
-
-    // Log do webhook recebido
-    await supabase.from('webhook_logs').insert({
-      method: 'POST',
-      url: '/whapi-webhook',
-      source: 'whapi',
-      body: webhook,
-      response_status: 200
-    })
-
-    // Log das correções aplicadas
-    await supabase.from('system_logs').insert({
-      type: 'info',
-      source: 'whapi-webhook',
-      message: 'Webhook WHAPI corrigido para formato Cloud API',
-      details: {
-        event_type: webhook.event?.type,
-        messages_count: webhook.messages?.length || 0,
-        statuses_count: webhook.statuses?.length || 0,
-        channel_id: webhook.channel_id,
-        seller_id: sellerId,
-        corrections_applied: [
-          'Formato WHAPI Cloud implementado',
-          'Filtro de grupos adicionado',
-          'Criação automática de conversas/leads',
-          'Processamento correto de from_me',
-          'Suporte a todos os tipos de mídia'
-        ]
-      }
-    })
-
-    // Processar mensagens (formato correto WHAPI)
-    if (webhook.event?.type === 'messages' && webhook.messages) {
-      for (const message of webhook.messages) {
-        await processMessage(supabase, message, sellerId)
-      }
-    }
-
-    // Processar status de entrega (formato correto WHAPI)  
-    if (webhook.event?.type === 'statuses' && webhook.statuses) {
-      for (const status of webhook.statuses) {
+    // Processar atualizações de status de mensagens
+    if (body.statuses && Array.isArray(body.statuses)) {
+      for (const status of body.statuses) {
         await processMessageStatus(supabase, status)
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, processed: webhook.messages?.length || 0 }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
-  } catch (error) {
-    console.error('Erro no webhook WHAPI:', error)
-    
-    // Log do erro
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-    
-    await supabase.from('system_logs').insert({
-      type: 'error',
-      source: 'whapi-webhook',
-      message: 'Erro ao processar webhook WHAPI',
-      details: { error: error.message, stack: error.stack }
+    // Processar mensagens (formato correto)
+    if (body.messages && Array.isArray(body.messages)) {
+      for (const message of body.messages) {
+        await processMessage(supabase, message, sellerId)
+      }
+    }
+
+    return new Response('OK', { 
+      status: 200,
+      headers: corsHeaders 
     })
 
+  } catch (error) {
+    console.error('❌ Erro no webhook WHAPI:', error)
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({ error: 'Webhook processing failed' }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
     )
   }
 })
+
+// Função para processar atualizações de status de mensagens
+async function processMessageStatus(supabase: any, status: any) {
+  try {
+    // Mapear códigos de status WHAPI para nossos status
+    const statusMap: { [key: number]: string } = {
+      1: 'sent',       // enviado
+      2: 'delivered',  // entregue
+      3: 'read',       // lido
+      4: 'read'        // lido (confirmação dupla)
+    }
+
+    const deliveryStatus = statusMap[status.code] || 'sent'
+
+    // Atualizar mensagem no banco
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        delivery_status: deliveryStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('whatsapp_message_id', status.id)
+
+    if (error) {
+      console.error('Erro ao atualizar status da mensagem:', error)
+    } else {
+      console.log(`✅ Status da mensagem ${status.id} atualizado para: ${deliveryStatus}`)
+    }
+
+    // Log no whapi_logs se necessário
+    await supabase
+      .from('whapi_logs')
+      .update({
+        status: deliveryStatus,
+        metadata: {
+          ...status,
+          status_updated_at: new Date().toISOString()
+        }
+      })
+      .eq('whapi_message_id', status.id)
+
+  } catch (error) {
+    console.error('Erro ao processar status da mensagem:', error)
+  }
+}
 
 async function processMessage(supabase: any, message: WhapiMessage, sellerId?: string | null) {
   try {
@@ -515,165 +497,60 @@ async function processSellerToCustomerMessage(supabase: any, seller: any, messag
         mediaUrl = message.document?.link
         break
       case 'location':
-        content = `[Localização: ${message.location?.latitude}, ${message.location?.longitude}]`
-        break
-      case 'reaction':
-        content = `Reagiu com ${message.reaction?.emoji || '👍'}`
-        messageType = 'reaction'
+        content = `[Localização]`
         break
       default:
         content = `[${message.type}]`
     }
 
-    // Salvar mensagem na conversa
-    const { data: savedMessage } = await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      sender_type: 'seller',
-      sender_name: seller.name,
-      content: content,
-      message_type: messageType,
-      media_url: mediaUrl,
-      message_source: 'whapi',
-      whatsapp_message_id: message.id,
-      metadata: {
-        whapi_message_id: message.id,
-        seller_id: seller.id,
-        customer_phone: customerPhone,
-        from_me: message.from_me,
-        chat_id: message.chat_id,
-        timestamp: message.timestamp,
-        context: message.context
-      }
-    }).select().single()
+    // Inserir mensagem do vendedor
+    await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversation.id,
+        whatsapp_message_id: message.id,
+        sender_type: 'seller',
+        sender_name: seller.name,
+        content: content,
+        message_type: messageType,
+        media_url: mediaUrl,
+        created_at: new Date(message.timestamp * 1000).toISOString(),
+        delivery_status: 'sent',
+        message_source: 'whapi',
+        metadata: {
+          seller_id: seller.id,
+          chat_id: message.chat_id,
+          from_me: message.from_me,
+          whapi_original: message
+        }
+      })
 
-    // Atualizar timestamps
-    await Promise.all([
-      supabase
-        .from('leads')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', lead.id),
-      supabase
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversation.id)
-    ])
-
-    console.log(`✅ Mensagem vendedor→cliente salva: ${conversation.id} | ${savedMessage?.id}`)
-  } else {
-    console.log(`❌ Falha ao criar/encontrar conversa para vendedor ${seller.name} e cliente ${customerPhone}`)
+    console.log(`✅ Mensagem do vendedor ${seller.name} salva para conversa ${conversation.id}`)
   }
 }
 
 async function processCustomerToSellerMessage(supabase: any, seller: any, message: WhapiMessage, customerPhone: string) {
   console.log(`📥 Mensagem do cliente ${customerPhone} para vendedor ${seller.name}`)
 
-  // 1️⃣ BUSCAR CONVERSA/LEAD EXISTENTE
-  let conversation = null
-  let lead = null
-
-  // Primeiro, buscar por lead ativo do vendedor com este cliente
+  // 1️⃣ BUSCAR CONVERSA E LEAD EXISTENTES
   const { data: existingLead } = await supabase
     .from('leads')
     .select(`
       id,
       conversation_id,
-      customer_name,
-      phone_number,
-      seller_id,
       status,
-      conversations!inner(id, customer_name, phone_number, status, assigned_seller_id)
+      conversations!inner(id, customer_name, phone_number, status)
     `)
-    .eq('seller_id', seller.id)
     .eq('phone_number', customerPhone)
+    .eq('seller_id', seller.id)
     .in('status', ['attending', 'sent_to_seller'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (existingLead?.conversations) {
-    lead = existingLead
-    conversation = existingLead.conversations
-  } else {
-    // Buscar conversa existente sem lead específico (pode ser do bot)
-    const { data: existingConversation } = await supabase
-      .from('conversations')
-      .select('id, customer_name, phone_number, status, assigned_seller_id')
-      .eq('phone_number', customerPhone)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (existingConversation) {
-      conversation = existingConversation
-      
-      // Criar lead para esta conversa (transição bot → vendedor)
-      const { data: newLead } = await supabase
-        .from('leads')
-        .insert({
-          conversation_id: conversation.id,
-          seller_id: seller.id,
-          customer_name: conversation.customer_name || message.from_name || customerPhone,
-          phone_number: customerPhone,
-          product_interest: 'Cliente retornou ao atendimento',
-          summary: 'Lead criado - cliente enviou mensagem para vendedor',
-          status: 'attending'
-        })
-        .select()
-        .single()
-
-      lead = newLead
-      
-      // Atualizar conversa para o vendedor
-      await supabase
-        .from('conversations')
-        .update({
-          status: 'sent_to_seller',
-          assigned_seller_id: seller.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', conversation.id)
-        
-      console.log(`📋 Lead criado para conversa existente: ${lead.id}`)
-    } else {
-      // 2️⃣ CRIAR NOVA CONVERSA + LEAD (cliente iniciou contato com vendedor)
-      console.log(`🆕 Criando nova conversa/lead - cliente ${customerPhone} iniciou contato com ${seller.name}`)
-      
-      const { data: newConversation } = await supabase
-        .from('conversations')
-        .insert({
-          phone_number: customerPhone,
-          customer_name: message.from_name || `Cliente ${customerPhone.slice(-4)}`,
-          status: 'sent_to_seller',
-          assigned_seller_id: seller.id
-        })
-        .select()
-        .single()
-
-      if (newConversation) {
-        conversation = newConversation
-        
-        const { data: newLead } = await supabase
-          .from('leads')
-          .insert({
-            conversation_id: conversation.id,
-            seller_id: seller.id,
-            customer_name: conversation.customer_name,
-            phone_number: customerPhone,
-            product_interest: 'Cliente iniciou contato',
-            summary: 'Lead criado automaticamente - cliente iniciou conversa via WHAPI',
-            status: 'attending'
-          })
-          .select()
-          .single()
-
-        lead = newLead
-        console.log(`🎯 Nova conversa/lead criados: ${conversation.id} / ${lead.id}`)
-      }
-    }
-  }
-
-  // 3️⃣ SALVAR MENSAGEM DO CLIENTE
-  if (conversation && lead) {
+  if (existingLead && existingLead.conversations) {
+    const conversation = existingLead.conversations
+    
     // Extrair conteúdo da mensagem
     let content = ''
     let mediaUrl = null
@@ -700,66 +577,37 @@ async function processCustomerToSellerMessage(supabase: any, seller: any, messag
         mediaUrl = message.document?.link
         break
       case 'location':
-        content = `[Localização: ${message.location?.latitude}, ${message.location?.longitude}]`
-        break
-      case 'reaction':
-        content = `Reagiu com ${message.reaction?.emoji || '👍'}`
-        messageType = 'reaction'
+        content = `[Localização]`
         break
       default:
         content = `[${message.type}]`
     }
 
-    // Salvar mensagem na conversa
-    const { data: savedMessage } = await supabase.from('messages').insert({
-      conversation_id: conversation.id,
-      sender_type: 'customer',
-      sender_name: conversation.customer_name || message.from_name || customerPhone,
-      content: content,
-      message_type: messageType,
-      media_url: mediaUrl,
-      message_source: 'whapi',
-      whatsapp_message_id: message.id,
-      metadata: {
-        whapi_message_id: message.id,
-        customer_phone: customerPhone,
-        from_me: message.from_me,
-        chat_id: message.chat_id,
-        timestamp: message.timestamp,
-        context: message.context
-      }
-    }).select().single()
+    // Inserir mensagem do cliente
+    await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversation.id,
+        whatsapp_message_id: message.id,
+        sender_type: 'customer',
+        sender_name: message.from_name || conversation.customer_name || customerPhone,
+        content: content,
+        message_type: messageType,
+        media_url: mediaUrl,
+        created_at: new Date(message.timestamp * 1000).toISOString(),
+        delivery_status: 'delivered',
+        message_source: 'whapi',
+        metadata: {
+          seller_id: seller.id,
+          lead_id: existingLead.id,
+          chat_id: message.chat_id,
+          from_me: message.from_me,
+          whapi_original: message
+        }
+      })
 
-    // Atualizar timestamps
-    await Promise.all([
-      supabase
-        .from('leads')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', lead.id),
-      supabase
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversation.id)
-    ])
-
-    console.log(`✅ Mensagem cliente→vendedor salva: ${conversation.id} | ${savedMessage?.id}`)
+    console.log(`✅ Mensagem do cliente salva para conversa ${conversation.id} (Lead: ${existingLead.id})`)
   } else {
-    console.log(`❌ Falha ao criar/encontrar conversa para cliente ${customerPhone} e vendedor ${seller.name}`)
+    console.log(`⚠️  Lead não encontrado para cliente ${customerPhone} com vendedor ${seller.name}`)
   }
-}
-
-async function processMessageStatus(supabase: any, status: any) {
-  console.log('Processando status de mensagem:', status)
-  
-  // Atualizar status na tabela whapi_logs
-  await supabase
-    .from('whapi_logs')
-    .update({ 
-      status: status.status,
-      metadata: { 
-        status_code: status.code,
-        timestamp: status.timestamp
-      }
-    })
-    .eq('whapi_message_id', status.id)
 }

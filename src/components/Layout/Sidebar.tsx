@@ -18,6 +18,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Mensagens Oficial', href: '/mensagens/oficial', icon: MessageSquare },
   { name: 'Acompanhar Vendedores', href: '/mensagens/vendedores', icon: Users },
+  { name: 'WhatsApp Clone', href: '/whatsapp-clone', icon: MessageSquare },
   { name: 'Leads', href: '/leads', icon: Target },
   { name: 'Visão do Dono', href: '/visao-dono', icon: Brain },
   { name: 'Agentes de IA', href: '/agentes-ia', icon: Bot },

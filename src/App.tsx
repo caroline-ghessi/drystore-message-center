@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import MensagensOficial from "./pages/MensagensOficial";
 import MensagensVendedores from "./pages/MensagensVendedores";
+import WhatsAppClone from "./pages/WhatsAppClone";
 import Leads from "./pages/Leads";
 import Configuracoes from "./pages/Configuracoes";
 import Debug from "./pages/Debug";
@@ -50,12 +51,12 @@ const App = () => (
                 </div>
               </ProtectedRoute>
             } />
-            <Route path="/mensagens/vendedores" element={
+            <Route path="/whatsapp-clone" element={
               <ProtectedRoute>
                 <div className="flex h-screen bg-background">
                   <Sidebar />
                   <main className="flex-1 overflow-hidden">
-                    <MensagensVendedores />
+                    <WhatsAppClone />
                   </main>
                 </div>
               </ProtectedRoute>
