@@ -177,8 +177,8 @@ export class WhapiService {
         throw new Error('Rodrigo Bot WHAPI não configurado');
       }
 
-      // Buscar token do Rodrigo Bot
-      const rodrigoToken = await this.getSecretValue(rodrigoConfig.token_secret_name);
+      // Buscar token do Rodrigo Bot de forma segura
+      const rodrigoToken = await this.getRodrigoBotTokenSecurely();
       
       if (!rodrigoToken) {
         throw new Error('Token do Rodrigo Bot não encontrado nos secrets');
@@ -259,8 +259,8 @@ _Responda diretamente para o cliente_`;
     leadSummary: string
   ): Promise<void> {
     try {
-      // Buscar token do vendedor
-      const sellerToken = await this.getSecretValue(`WHAPI_TOKEN_${seller.phone_number.replace(/\D/g, '')}`);
+      // Buscar token do vendedor de forma segura
+      const sellerToken = await this.getSellerTokenSecurely(seller.phone_number);
       
       if (!sellerToken) {
         console.warn(`Token WHAPI não encontrado para vendedor ${seller.name}`);
@@ -335,8 +335,8 @@ _Responda diretamente para o cliente_`;
         throw new Error('Rodrigo Bot WHAPI não configurado');
       }
 
-      // Buscar token do Rodrigo Bot
-      const rodrigoToken = await this.getSecretValue(rodrigoConfig.token_secret_name);
+      // Buscar token do Rodrigo Bot de forma segura
+      const rodrigoToken = await this.getRodrigoBotTokenSecurely();
       
       if (!rodrigoToken) {
         throw new Error('Token do Rodrigo Bot não encontrado');
@@ -516,11 +516,39 @@ _Alerta automático do sistema de monitoramento_`;
     return `Olá! Eu sou ${sellerName} da Drystore. Vi que você tem interesse em nossos produtos. Como posso ajudá-lo hoje?`;
   }
 
-  private async getSecretValue(secretName: string): Promise<string | null> {
-    // Em um ambiente real, isso buscaria o secret do Supabase
-    // Por enquanto, simular a busca
-    console.log(`Buscando secret: ${secretName}`);
-    return process.env[secretName] || null;
+  // Helper seguro para obter token de vendedor
+  private async getSellerTokenSecurely(sellerId: string): Promise<string | null> {
+    try {
+      const { data: tokenData } = await supabase.functions.invoke('get-whapi-token', {
+        body: { 
+          tokenSecretName: `WHAPI_TOKEN_${sellerId.replace(/\D/g, '')}`,
+          sellerId,
+          requesterType: 'system'
+        }
+      })
+      
+      return tokenData?.success ? tokenData.token : null
+    } catch (error) {
+      console.error('Erro ao obter token do vendedor:', error)
+      return null
+    }
+  }
+
+  // Helper seguro para obter token do Rodrigo Bot
+  private async getRodrigoBotTokenSecurely(): Promise<string | null> {
+    try {
+      const { data: tokenData } = await supabase.functions.invoke('get-whapi-token', {
+        body: { 
+          tokenSecretName: 'WHAPI_TOKEN_5551981155622',
+          requesterType: 'system'
+        }
+      })
+      
+      return tokenData?.success ? tokenData.token : null
+    } catch (error) {
+      console.error('Erro ao obter token do Rodrigo Bot:', error)
+      return null
+    }
   }
 }
 
