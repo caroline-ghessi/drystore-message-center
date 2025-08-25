@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
-import { Play, Pause, Download, FileText, MapPin, Loader2, AlertTriangle, Volume2 } from "lucide-react";
+import { Play, Pause, Download, FileText, MapPin, Loader2, AlertTriangle, Volume2, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useEffect } from "react";
 
-export type MessageType = 'text' | 'audio' | 'image' | 'video' | 'document' | 'location' | 'voice';
+export type MessageType = 'text' | 'audio' | 'image' | 'video' | 'document' | 'location' | 'voice' | 'reaction';
 export type SenderType = 'customer' | 'bot' | 'seller' | 'system';
 
 interface MessageBubbleProps {
@@ -293,6 +293,24 @@ export function MessageBubble({
                 {lat}, {lng}
               </div>
             )}
+          </div>
+        );
+      
+      case 'reaction':
+        const reactionEmoji = metadata?.reaction_emoji || '👍';
+        const reactedMessageId = metadata?.reacted_to_message_id;
+        
+        return (
+          <div className="flex items-center space-x-2 py-1">
+            <div className="text-2xl">{reactionEmoji}</div>
+            <div className="text-sm">
+              <span className="font-medium">Reagiu à mensagem</span>
+              {reactedMessageId && (
+                <p className="text-xs text-muted-foreground">
+                  ID: {reactedMessageId.substring(0, 8)}...
+                </p>
+              )}
+            </div>
           </div>
         );
       

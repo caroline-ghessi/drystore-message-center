@@ -8,7 +8,7 @@ export interface Message {
   sender_type: 'customer' | 'bot' | 'seller' | 'system';
   sender_name?: string;
   content?: string;
-  message_type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'location';
+  message_type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'location' | 'reaction';
   media_url?: string;
   created_at: string;
   is_read: boolean;

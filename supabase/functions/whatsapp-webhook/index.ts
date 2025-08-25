@@ -248,6 +248,19 @@ async function processMessages(supabase: any, value: any) {
         messageType = 'location';
         content = `[Localização: ${message.location?.latitude}, ${message.location?.longitude}]`;
         break;
+      case 'reaction':
+        messageType = 'reaction';
+        const emoji = message.reaction?.emoji || '👍';
+        const reactedMessageId = message.reaction?.message_id;
+        content = `${emoji} Reagiu com`;
+        // Store reaction details in metadata
+        metadata = { 
+          ...metadata, 
+          original_message: message,
+          reaction_emoji: emoji,
+          reacted_to_message_id: reactedMessageId
+        };
+        break;
       default:
         content = `[Mensagem não suportada: ${message.type}]`;
     }
@@ -261,7 +274,7 @@ async function processMessages(supabase: any, value: any) {
       content: content,
       message_type: messageType,
       media_url: mediaUrl,
-      metadata: { original_message: message }
+      metadata: metadata || { original_message: message }
     }).select().single();
 
     // Process media in background if exists
@@ -276,14 +289,15 @@ async function processMessages(supabase: any, value: any) {
     }
 
     // Add to message queue for batching only if not in fallback mode and bot is attending
-    if (!conversation.fallback_mode && conversation.status === 'bot_attending') {
+    // Skip reactions as they are just feedback and shouldn't trigger bot responses
+    if (!conversation.fallback_mode && conversation.status === 'bot_attending' && messageType !== 'reaction') {
       await supabase.from('message_queue').insert({
         conversation_id: conversation.id,
         messages_content: [content],
         status: 'waiting'
       });
     } else {
-      console.log(`Skipping queue insertion for conversation ${conversation.id} - fallback_mode: ${conversation.fallback_mode}, status: ${conversation.status}`);
+      console.log(`Skipping queue insertion for conversation ${conversation.id} - fallback_mode: ${conversation.fallback_mode}, status: ${conversation.status}, messageType: ${messageType}`);
     }
 
     console.log(`Message processed for conversation ${conversation.id}`);
