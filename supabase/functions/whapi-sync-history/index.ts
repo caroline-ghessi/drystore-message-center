@@ -44,23 +44,23 @@ serve(async (req) => {
     const token = tokenResponse.secret
 
     // 1. Buscar lista de chats
-    const chatsResponse = await fetch('https://gate.whapi.cloud/chats', {
+    const chatsResponse = await fetch(`https://gate.whapi.cloud/chats?count=${limitChats}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        count: limitChats
-      })
+      }
     })
 
-    if (!chatsResponse.ok) {
-      throw new Error(`Erro ao buscar chats: ${chatsResponse.status}`)
-    }
-
     const chatsData = await chatsResponse.json()
-    const chats = chatsData.chats || []
+    
+    if (!chatsResponse.ok) {
+      console.error('Erro na resposta da API WHAPI:', chatsData)
+      throw new Error(`Erro ao buscar chats: ${chatsResponse.status} - ${chatsData.error || chatsData.message || 'Erro desconhecido'}`)
+    }
+    
+    const chats = chatsData.chats || chatsData || []
+    console.log(`Encontrados ${chats.length} chats totais`)
     
     let conversationsCreated = 0
     let messagesImported = 0
@@ -71,21 +71,19 @@ serve(async (req) => {
       if (chat.id && !chat.id.includes('@g.us')) {
         try {
           // Buscar mensagens do chat
-          const messagesResponse = await fetch('https://gate.whapi.cloud/messages/list', {
+          const messagesResponse = await fetch(`https://gate.whapi.cloud/messages/list?chat_id=${encodeURIComponent(chat.id)}&count=${limitMessages}`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
               'Accept': 'application/json'
-            },
-            body: JSON.stringify({
-              chat_id: chat.id,
-              count: limitMessages
-            })
+            }
           })
 
           if (messagesResponse.ok) {
             const messagesData = await messagesResponse.json()
             const messages = messagesData.messages || []
+            
+            console.log(`Chat ${chat.id}: ${messages.length} mensagens encontradas`)
 
             if (messages.length > 0) {
               // Criar ou atualizar conversa
@@ -169,6 +167,9 @@ serve(async (req) => {
                 }
               }
             }
+          } else {
+            const errorData = await messagesResponse.json().catch(() => ({}))
+            console.error(`Erro ao buscar mensagens do chat ${chat.id}: ${messagesResponse.status}`, errorData)
           }
 
           // Pequeno delay entre requisições

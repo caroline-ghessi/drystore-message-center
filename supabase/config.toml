@@ -18,6 +18,9 @@ verify_jwt = false
 [functions.whapi-configure]
 verify_jwt = false
 
+[functions.whapi-sync-history]
+verify_jwt = false
+
 [functions.check-inactive-conversations]
 verify_jwt = false
 
