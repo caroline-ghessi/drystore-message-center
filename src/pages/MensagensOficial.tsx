@@ -6,7 +6,7 @@ import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
 import { ManualTransferDialog } from "@/components/WhatsApp/ManualTransferDialog";
-import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Timer, Loader2, ArrowRight } from "lucide-react";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Loader2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
@@ -29,7 +29,6 @@ import {
 export default function MensagensOficial() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
-  const [timers, setTimers] = useState<Record<string, number>>({});
   const [isManualTransferDialogOpen, setIsManualTransferDialogOpen] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -39,59 +38,6 @@ export default function MensagensOficial() {
   const { data: messages = [], isLoading: messagesLoading } = useConversationMessages(selectedConversation);
   const { data: sellers = [], isLoading: sellersLoading } = useActiveSellers();
   const transferMutation = useTransferToSeller();
-
-  // Timer para avaliação automática (simulado por enquanto)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers(prev => {
-        const newTimers = { ...prev };
-        conversations.forEach(conv => {
-          if (conv.status === 'waiting_evaluation') {
-            // Simula timer de 15 minutos para avaliação
-            const timerId = `${conv.id}-timer`;
-            if (!newTimers[timerId]) {
-              newTimers[timerId] = 15 * 60; // 15 minutos em segundos
-            }
-            newTimers[timerId] = newTimers[timerId] - 1;
-            
-            if (newTimers[timerId] <= 0) {
-              handleAutoEvaluation(conv.id);
-              delete newTimers[timerId];
-            }
-          }
-        });
-        return newTimers;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [conversations]);
-
-  const handleAutoEvaluation = async (conversationId: string) => {
-    console.log('Avaliação automática disparada para:', conversationId);
-    
-    try {
-      // Atualiza status da conversa no banco
-      const { error } = await supabase
-        .from('conversations')
-        .update({ status: 'sent_to_seller' })
-        .eq('id', conversationId);
-
-      if (error) throw error;
-      
-      toast({
-        title: "Avaliação Automática",
-        description: "Lead avaliado automaticamente e enviado ao vendedor",
-      });
-    } catch (error) {
-      console.error('Erro na avaliação automática:', error);
-      toast({
-        title: "Erro",
-        description: "Erro na avaliação automática. Tente novamente.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleFallbackMode = async (conversationId: string) => {
     if (!user) {
@@ -301,12 +247,6 @@ export default function MensagensOficial() {
                         <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           <span>{formatTime(conversation.last_message_at)}</span>
-                          {conversation.status === 'waiting_evaluation' && timers[`${conversation.id}-timer`] && (
-                            <div className="flex items-center space-x-1 text-drystore-warning">
-                              <Timer className="h-3 w-3" />
-                              <span>{formatTimer(timers[`${conversation.id}-timer`])}</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

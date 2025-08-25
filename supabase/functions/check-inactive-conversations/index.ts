@@ -17,9 +17,9 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Iniciando verificação de conversas inativas...');
 
-    // Buscar conversas em bot_attending sem atividade por 20+ minutos
-    const twentyMinutesAgo = new Date();
-    twentyMinutesAgo.setMinutes(twentyMinutesAgo.getMinutes() - 20);
+    // Buscar conversas em bot_attending sem atividade por 40+ minutos
+    const fortyMinutesAgo = new Date();
+    fortyMinutesAgo.setMinutes(fortyMinutesAgo.getMinutes() - 40);
 
     const { data: inactiveConversations, error: searchError } = await supabase
       .from('conversations')
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       `)
       .eq('status', 'bot_attending')
       .eq('fallback_mode', false)
-      .lt('updated_at', twentyMinutesAgo.toISOString());
+      .lt('updated_at', fortyMinutesAgo.toISOString());
 
     if (searchError) {
       console.error('❌ Erro ao buscar conversas inativas:', searchError);
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
         return false;
       }
 
-      // Verificar se a última mensagem do cliente foi há mais de 20 minutos
+      // Verificar se a última mensagem do cliente foi há mais de 40 minutos
       const customerMessages = messages.filter((msg: any) => msg.sender_type === 'customer');
       const lastCustomerMessage = customerMessages
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         const timeDiff = Date.now() - lastMessageTime.getTime();
         const minutesDiff = timeDiff / (1000 * 60);
         
-        if (minutesDiff < 20) {
+        if (minutesDiff < 40) {
           console.log(`⏭️ Conversa ${conv.id} ignorada - última mensagem há ${minutesDiff.toFixed(1)} minutos`);
           return false;
         }
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
             customer_name: conversation.customer_name,
             previous_status: 'bot_attending',
             new_status: 'waiting_evaluation',
-            inactivity_duration_minutes: 20
+            inactivity_duration_minutes: 40
           }
         });
       }

@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
           total_messages: messages.length,
           conversation_history: conversationHistory,
           created_at: conversation.created_at,
-          inactivity_time: '20+ minutos'
+          inactivity_time: '40+ minutos'
         };
 
         // Executar agente avaliador de leads
