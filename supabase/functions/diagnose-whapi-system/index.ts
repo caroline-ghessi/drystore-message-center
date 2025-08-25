@@ -28,12 +28,19 @@ serve(async (req) => {
       system_health: 'unknown'
     }
 
-    // 1. Diagnóstico do Rodrigo Bot
+    // 1. Diagnóstico do Rodrigo Bot (MODO SEGURO)
     console.log('🤖 Diagnosticando Rodrigo Bot...')
-    const rodrigoBotToken = Deno.env.get('WHAPI_TOKEN_5551981155622')
     
-    if (rodrigoBotToken) {
-      try {
+    try {
+      // Usar função segura para obter token
+      const { data: tokenData } = await supabase.functions.invoke('get-whapi-token', {
+        body: { 
+          tokenSecretName: 'WHAPI_TOKEN_5551981155622',
+          requesterType: 'diagnostic'
+        }
+      })
+
+      if (tokenData?.success && tokenData?.token) {
         // Validar token do Rodrigo Bot via WHAPI
         const { data: rodrigoValidation } = await supabase.functions.invoke('validate-whapi-token', {
           body: { tokenSecretName: 'WHAPI_TOKEN_5551981155622' }
@@ -41,24 +48,24 @@ serve(async (req) => {
 
         diagnostics.rodrigo_bot = {
           token_exists: true,
-          token_length: rodrigoBotToken.length,
-          token_masked: rodrigoBotToken.substring(0, 10) + '...',
+          token_length: tokenData.token.length,
+          token_secured: true,
           validation: rodrigoValidation,
           expected_phone: '5551981155622',
           actual_phone: rodrigoValidation?.associatedPhone || 'unknown',
           phone_matches: rodrigoValidation?.associatedPhone === '5551981155622'
         }
-      } catch (error) {
+      } else {
         diagnostics.rodrigo_bot = {
-          token_exists: true,
-          validation_error: error.message,
-          token_masked: rodrigoBotToken.substring(0, 10) + '...'
+          token_exists: false,
+          error: 'Token não pôde ser acessado via função segura'
         }
       }
-    } else {
+    } catch (error) {
       diagnostics.rodrigo_bot = {
         token_exists: false,
-        error: 'Token WHAPI_TOKEN_5551981155622 não encontrado'
+        validation_error: error.message,
+        security_note: 'Acesso via função segura falhou'
       }
     }
 
@@ -83,19 +90,31 @@ serve(async (req) => {
           token_validation: null
         }
 
-        // Verificar se o token existe
-        const token = Deno.env.get(config.token_secret_name)
-        configDiag.token_exists = !!token
+        // Verificar se o token existe de forma segura
+        try {
+          const { data: tokenData } = await supabase.functions.invoke('get-whapi-token', {
+            body: { 
+              tokenSecretName: config.token_secret_name,
+              requesterType: 'diagnostic'
+            }
+          })
+          
+          configDiag.token_exists = tokenData?.success || false
+          configDiag.token_secured = true
 
-        if (token) {
-          try {
-            const { data: validation } = await supabase.functions.invoke('validate-whapi-token', {
-              body: { tokenSecretName: config.token_secret_name }
-            })
-            configDiag.token_validation = validation
-          } catch (error) {
-            configDiag.token_validation = { error: error.message }
+          if (tokenData?.success) {
+            try {
+              const { data: validation } = await supabase.functions.invoke('validate-whapi-token', {
+                body: { tokenSecretName: config.token_secret_name }
+              })
+              configDiag.token_validation = validation
+            } catch (error) {
+              configDiag.token_validation = { error: error.message }
+            }
           }
+        } catch (error) {
+          configDiag.token_exists = false
+          configDiag.token_validation = { error: 'Falha no acesso seguro ao token' }
         }
 
         diagnostics.configurations.push(configDiag)
@@ -116,28 +135,39 @@ serve(async (req) => {
           id: seller.id,
           name: seller.name,
           phone_number: seller.phone_number,
-          whapi_token: seller.whapi_token ? 'SET' : 'NOT_SET',
+          whapi_token_secret: seller.whapi_token_secret_name || 'NOT_SET',
           whapi_status: seller.whapi_status,
           auto_first_message: seller.auto_first_message,
-          token_validation: null
+          token_validation: null,
+          security_compliance: true
         }
 
-        // Se tem token próprio, validar
-        if (seller.whapi_token) {
+        // Se tem token secret name, validar de forma segura
+        if (seller.whapi_token_secret_name) {
           try {
-            const response = await fetch(`https://gate.whapi.cloud/me?token=${seller.whapi_token}`, {
-              method: 'GET'
+            const { data: tokenData } = await supabase.functions.invoke('get-whapi-token', {
+              body: { 
+                tokenSecretName: seller.whapi_token_secret_name,
+                sellerId: seller.id,
+                requesterType: 'diagnostic'
+              }
             })
-            if (response.ok) {
-              const data = await response.json()
+
+            if (tokenData?.success && tokenData?.token) {
+              // Validar via endpoint oficial sem expor token
+              const { data: validation } = await supabase.functions.invoke('validate-whapi-token', {
+                body: { tokenSecretName: seller.whapi_token_secret_name }
+              })
+              
               sellerDiag.token_validation = {
-                valid: true,
-                associated_phone: data.phone?.replace(/\D/g, '') || 'unknown'
+                valid: validation?.valid || false,
+                associated_phone: validation?.associatedPhone || 'unknown',
+                token_length: tokenData.token.length
               }
             } else {
               sellerDiag.token_validation = {
                 valid: false,
-                error: `HTTP ${response.status}`
+                error: 'Token não acessível via função segura'
               }
             }
           } catch (error) {
