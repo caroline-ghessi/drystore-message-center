@@ -32,13 +32,35 @@ serve(async (req) => {
       )
     }
 
-    // Buscar token do vendedor
+    // Buscar o registro do seller para obter o nome correto do token
+    const { data: seller, error: sellerError } = await supabase
+      .from('sellers')
+      .select('whapi_token_secret_name, name, phone_number')
+      .eq('id', sellerId)
+      .eq('active', true)
+      .single()
+
+    if (sellerError || !seller) {
+      return new Response(
+        JSON.stringify({ error: 'Vendedor não encontrado ou inativo' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!seller.whapi_token_secret_name) {
+      return new Response(
+        JSON.stringify({ error: 'Token WHAPI não configurado para este vendedor' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Buscar token usando o nome correto do secret
     const { data: tokenResponse } = await supabase.functions.invoke('get-secret', {
-      body: { secretName: `WHAPI_TOKEN_${sellerId.toUpperCase().replace(/-/g, '_')}` }
+      body: { secretName: seller.whapi_token_secret_name }
     })
 
     if (!tokenResponse?.secret) {
-      throw new Error('Token WHAPI não encontrado para este vendedor')
+      throw new Error(`Token WHAPI não encontrado: ${seller.whapi_token_secret_name}`)
     }
 
     const token = tokenResponse.secret
