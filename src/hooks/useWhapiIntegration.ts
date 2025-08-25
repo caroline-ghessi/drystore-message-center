@@ -128,7 +128,10 @@ export const useWhapiIntegration = () => {
   // Buscar URL do webhook para um seller
   const getWebhookUrl = (sellerId?: string) => {
     const projectId = 'groqsnnytvjabgeaekkw';
-    return `https://${projectId}.supabase.co/functions/v1/whapi-webhook`;
+    // Para vendedores, incluir seller_id na URL
+    return sellerId 
+      ? `https://${projectId}.supabase.co/functions/v1/whapi-webhook/${sellerId}`
+      : `https://${projectId}.supabase.co/functions/v1/whapi-webhook`;
   };
 
   // Verificar se vendedor tem WHAPI configurado

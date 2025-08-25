@@ -104,7 +104,10 @@ export class WhapiService {
     sellerId?: string
   ): Promise<WhapiConfiguration> {
     try {
-      const webhookUrl = `${this.baseUrl}/whapi-webhook`;
+      // Para vendedores, incluir seller_id na URL do webhook
+      const webhookUrl = type === 'seller' && sellerId 
+        ? `${this.baseUrl}/whapi-webhook/${sellerId}`
+        : `${this.baseUrl}/whapi-webhook`;
 
       const { data, error } = await supabase.functions.invoke('whapi-configure', {
         body: {
