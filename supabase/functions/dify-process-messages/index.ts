@@ -320,6 +320,17 @@ async function processBufferedMessages(
   } catch (error) {
     console.error('Error processing buffered messages:', error);
     
+    // Marca mensagens da fila como erro
+    if (queueIds.length > 0) {
+      await supabase
+        .from('message_queue')
+        .update({ 
+          status: 'error',
+          processed_at: new Date().toISOString()
+        })
+        .in('id', queueIds);
+    }
+    
     // Log de erro
     await supabase.from('system_logs').insert({
       type: 'error',
@@ -328,7 +339,8 @@ async function processBufferedMessages(
       details: {
         conversation_id: conversationId,
         phone_number: phoneNumber,
-        error: error.message
+        error: error.message,
+        queue_ids: queueIds
       }
     });
   }
