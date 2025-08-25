@@ -30,8 +30,8 @@ interface DifyResponse {
 }
 
 // Message buffer para agrupar mensagens
-const messageBuffer = new Map<string, { messages: string[], timer: number }>();
-const GROUPING_TIME = 60000; // 60 segundos
+const messageBuffer = new Map<string, { messages: string[], timer: number, queueIds: string[] }>();
+const GROUPING_TIME = 30000; // 30 segundos - mais responsivo
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -44,7 +44,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { conversationId, phoneNumber, messageContent } = await req.json();
+    const { conversationId, phoneNumber, messageContent, queueId } = await req.json();
 
     console.log(`Processing message for conversation ${conversationId}, phone ${phoneNumber}`);
 
@@ -57,6 +57,18 @@ serve(async (req) => {
 
     if (!conversation || conversation.fallback_mode || conversation.status !== 'bot_attending') {
       console.log('Conversation not in bot mode, skipping Dify processing');
+      
+      // Marca mensagem da fila como processada se vier de lá
+      if (queueId) {
+        await supabase
+          .from('message_queue')
+          .update({ 
+            status: 'skipped',
+            processed_at: new Date().toISOString()
+          })
+          .eq('id', queueId);
+      }
+      
       return new Response(JSON.stringify({ 
         success: true, 
         message: 'Conversation not in bot mode' 
@@ -66,7 +78,7 @@ serve(async (req) => {
     }
 
     // Adiciona mensagem ao buffer
-    await addToBuffer(phoneNumber, messageContent, conversationId, supabase);
+    await addToBuffer(phoneNumber, messageContent, conversationId, queueId, supabase);
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -91,17 +103,20 @@ async function addToBuffer(
   phoneNumber: string, 
   message: string, 
   conversationId: string,
+  queueId: string | null,
   supabase: any
 ) {
   const existing = messageBuffer.get(phoneNumber);
   
   if (existing) {
     existing.messages.push(message);
+    if (queueId) existing.queueIds.push(queueId);
     // Cancela timer anterior
     clearTimeout(existing.timer);
   } else {
     messageBuffer.set(phoneNumber, {
       messages: [message],
+      queueIds: queueId ? [queueId] : [],
       timer: 0
     });
   }
@@ -130,6 +145,7 @@ async function processBufferedMessages(
 
   // Agrupa mensagens
   const groupedMessage = buffer.messages.join(' ');
+  const queueIds = buffer.queueIds;
 
   try {
     console.log(`Processing grouped message for ${phoneNumber}: ${groupedMessage}`);
@@ -183,6 +199,46 @@ async function processBufferedMessages(
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
     }
 
+    // Verifica se já existe uma resposta para esta mensagem (deduplicação)
+    const existingMessage = await supabase
+      .from('messages')
+      .select('id, metadata')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'bot')
+      .eq('content', groupedMessage)
+      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Últimos 5 minutos
+      .single();
+
+    if (existingMessage) {
+      console.log(`Duplicate message detected for ${phoneNumber}, skipping Dify call`);
+      
+      // Marca mensagens da fila como processadas
+      if (queueIds.length > 0) {
+        await supabase
+          .from('message_queue')
+          .update({ 
+            status: 'sent',
+            processed_at: new Date().toISOString()
+          })
+          .in('id', queueIds);
+      }
+
+      // Log de deduplicação
+      await supabase.from('system_logs').insert({
+        type: 'info',
+        source: 'dify',
+        message: 'Mensagem duplicada detectada e ignorada',
+        details: {
+          conversation_id: conversationId,
+          phone_number: phoneNumber,
+          existing_message_id: existingMessage.id,
+          queue_ids: queueIds
+        }
+      });
+      
+      return;
+    }
+
     // Envia para Dify
     console.log(`Sending to Dify: ${config.api_url}/chat-messages`);
     console.log('Payload:', JSON.stringify(payload, null, 2));
@@ -230,6 +286,17 @@ async function processBufferedMessages(
       })
       .eq('id', conversationId);
 
+    // Marca mensagens da fila como processadas
+    if (queueIds.length > 0) {
+      await supabase
+        .from('message_queue')
+        .update({ 
+          status: 'sent',
+          processed_at: new Date().toISOString()
+        })
+        .in('id', queueIds);
+    }
+
     // Envia resposta via WhatsApp
     await sendWhatsAppReply(phoneNumber, difyResponse.answer, supabase);
 
@@ -242,7 +309,9 @@ async function processBufferedMessages(
         conversation_id: conversationId,
         phone_number: phoneNumber,
         message_id: difyResponse.message_id,
-        tokens_used: difyResponse.metadata.usage.total_tokens
+        tokens_used: difyResponse.metadata.usage.total_tokens,
+        queue_ids: queueIds,
+        buffer_used: true
       }
     });
 
