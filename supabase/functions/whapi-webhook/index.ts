@@ -88,9 +88,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Extrair seller_id do query parameter se presente
+    // Extrair seller_id do path da URL ou query parameter
     const url = new URL(req.url)
-    const sellerId = url.searchParams.get('seller_id')
+    
+    // 1️⃣ Tentar extrair seller_id do path da URL (último segmento)
+    const pathSegments = url.pathname.split('/').filter(Boolean)
+    let sellerId = null
+    
+    // Se temos mais de 3 segmentos, o último pode ser o seller_id
+    if (pathSegments.length > 3) {
+      const lastSegment = pathSegments[pathSegments.length - 1]
+      // Verificar se parece com um UUID (36 caracteres com hifens)
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)) {
+        sellerId = lastSegment
+        console.log('📍 Seller ID extraído do path da URL:', sellerId)
+      }
+    }
+    
+    // 2️⃣ Fallback: tentar extrair do query parameter
+    if (!sellerId) {
+      sellerId = url.searchParams.get('seller_id')
+      if (sellerId) {
+        console.log('📍 Seller ID extraído do query parameter:', sellerId)
+      }
+    }
 
     const webhook: WhapiWebhook = await req.json()
     console.log('WHAPI Webhook recebido:', JSON.stringify(webhook, null, 2))
