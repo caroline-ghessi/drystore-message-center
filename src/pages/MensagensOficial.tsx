@@ -10,8 +10,8 @@ import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Loader2, Arro
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
-import { useConversations, Conversation } from "@/hooks/useConversations";
-import { useConversationMessages } from "@/hooks/useConversationMessages";
+import { useOfficialConversations, OfficialConversation } from "@/hooks/useOfficialConversations";
+import { useOfficialMessages } from "@/hooks/useOfficialMessages";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -33,9 +33,9 @@ export default function MensagensOficial() {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Hooks para dados reais
-  const { data: conversations = [], isLoading: conversationsLoading } = useConversations(searchTerm);
-  const { data: messages = [], isLoading: messagesLoading } = useConversationMessages(selectedConversation);
+  // Hooks para dados oficiais (Meta WhatsApp)
+  const { data: conversations = [], isLoading: conversationsLoading } = useOfficialConversations(searchTerm);
+  const { data: messages = [], isLoading: messagesLoading } = useOfficialMessages(selectedConversation);
   const { data: sellers = [], isLoading: sellersLoading } = useActiveSellers();
   const transferMutation = useTransferToSeller();
 
@@ -125,7 +125,8 @@ export default function MensagensOficial() {
           sender_type: 'system',
           sender_name: user.email || 'Operador',
           content: message,
-          message_type: 'text'
+          message_type: 'text',
+          message_source: 'meta' // Garantir que é uma mensagem oficial
         })
         .select()
         .single();
