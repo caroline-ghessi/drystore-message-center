@@ -199,19 +199,18 @@ async function processBufferedMessages(
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
     }
 
-    // Verifica se já existe uma resposta para esta mensagem (deduplicação mais restritiva)
-    const existingMessage = await supabase
+    // Verifica se já existe mensagem similar do cliente recente (evitar duplicatas)
+    const { data: existingMessage } = await supabase
       .from('messages')
-      .select('id, metadata')
+      .select('id')
       .eq('conversation_id', conversationId)
-      .eq('sender_type', 'bot')
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // Últimos 2 minutos apenas
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .eq('content', groupedMessage)
+      .eq('sender_type', 'customer')
+      .gte('created_at', new Date(Date.now() - 1 * 60 * 1000).toISOString()) // último 1 minuto apenas
+      .limit(1);
 
-    if (existingMessage) {
-      console.log(`Duplicate message detected for ${phoneNumber}, skipping Dify call`);
+    if (existingMessage.length > 0) {
+      console.log(`Duplicate customer message detected for ${phoneNumber}, skipping Dify call`);
       
       // Marca mensagens da fila como processadas
       if (queueIds.length > 0) {
@@ -228,11 +227,12 @@ async function processBufferedMessages(
       await supabase.from('system_logs').insert({
         type: 'info',
         source: 'dify',
-        message: 'Mensagem duplicada detectada e ignorada',
+        message: 'Mensagem duplicada do cliente detectada e ignorada',
         details: {
           conversation_id: conversationId,
           phone_number: phoneNumber,
-          existing_message_id: existingMessage.id,
+          existing_message_id: existingMessage[0]?.id,
+          duplicate_content: groupedMessage,
           queue_ids: queueIds
         }
       });
