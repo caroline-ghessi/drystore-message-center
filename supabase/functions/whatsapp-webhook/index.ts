@@ -184,11 +184,20 @@ async function processMessages(supabase: any, value: any) {
     const contact = contacts?.find((c: any) => c.wa_id === phoneNumber);
     const customerName = contact?.profile?.name || 'Cliente WhatsApp';
 
-    // Find or create conversation
+    // Find or create conversation - try multiple phone number formats
+    const phoneVariations = [
+      phoneNumber,
+      phoneNumber.replace(/\D/g, ''), // Remove all non-digits
+      phoneNumber.startsWith('55') ? phoneNumber : `55${phoneNumber}`, // Add country code
+      phoneNumber.startsWith('55') && phoneNumber.length > 13 ? phoneNumber.slice(2) : phoneNumber, // Remove country code
+    ];
+
     let { data: conversation } = await supabase
       .from('conversations')
       .select('*')
-      .eq('phone_number', phoneNumber)
+      .in('phone_number', phoneVariations)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (!conversation) {

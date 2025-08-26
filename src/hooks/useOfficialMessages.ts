@@ -67,11 +67,18 @@ export const useOfficialMessages = (conversationId: string | null) => {
         {
           event: '*',
           schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId} AND message_source=eq.meta`
+          table: 'messages'
         },
-        () => {
-          query.refetch();
+        (payload) => {
+          // Only refetch if it's for this conversation and meta source
+          const isThisConversation = (payload.new && typeof payload.new === 'object' && 'conversation_id' in payload.new && payload.new.conversation_id === conversationId) || 
+                                   (payload.old && typeof payload.old === 'object' && 'conversation_id' in payload.old && payload.old.conversation_id === conversationId);
+          const isMetaSource = (payload.new && typeof payload.new === 'object' && 'message_source' in payload.new && payload.new.message_source === 'meta') || 
+                              (payload.old && typeof payload.old === 'object' && 'message_source' in payload.old && payload.old.message_source === 'meta');
+          
+          if (isThisConversation && isMetaSource) {
+            query.refetch();
+          }
         }
       )
       .subscribe();

@@ -117,9 +117,9 @@ export const useOfficialConversations = (searchTerm?: string) => {
     refetchInterval: 5000, // Atualiza a cada 5 segundos
   });
 
-  // Real-time updates
+  // Real-time updates - separate channels to avoid filter conflicts
   useEffect(() => {
-    const channel = supabase
+    const conversationsChannel = supabase
       .channel('official-conversations-changes')
       .on(
         'postgres_changes',
@@ -132,22 +132,31 @@ export const useOfficialConversations = (searchTerm?: string) => {
           query.refetch();
         }
       )
+      .subscribe();
+
+    const messagesChannel = supabase
+      .channel('official-messages-meta-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'messages',
-          filter: 'message_source=eq.meta'
+          table: 'messages'
         },
-        () => {
-          query.refetch();
+        (payload) => {
+          // Only refetch if it's a meta message
+          if (payload.new && typeof payload.new === 'object' && 'message_source' in payload.new && payload.new.message_source === 'meta') {
+            query.refetch();
+          } else if (payload.old && typeof payload.old === 'object' && 'message_source' in payload.old && payload.old.message_source === 'meta') {
+            query.refetch();
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(conversationsChannel);
+      supabase.removeChannel(messagesChannel);
     };
   }, [query]);
 
