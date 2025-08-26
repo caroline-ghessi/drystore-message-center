@@ -199,18 +199,63 @@ async function processBufferedMessages(
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
     }
 
-    // Verifica se já existe mensagem similar do cliente recente (evitar duplicatas)
+    // 🔒 PROTEÇÃO ANTI-DUPLICAÇÃO ROBUSTA 🔒
+    
+    // 1. Verifica se já existe resposta do bot recente (últimos 5 minutos)
+    const { data: recentBotReply } = await supabase
+      .from('messages')
+      .select('id, created_at, content')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'bot')
+      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // últimos 5 minutos
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (recentBotReply.length > 0) {
+      console.log(`❌ Bot já respondeu recentemente para ${phoneNumber}, ignorando processamento duplicado`);
+      
+      // Marca mensagens da fila como processadas (evita reprocessamento)
+      if (queueIds.length > 0) {
+        await supabase
+          .from('message_queue')
+          .update({ 
+            status: 'skipped',
+            processed_at: new Date().toISOString()
+          })
+          .in('id', queueIds);
+      }
+
+      // Log da prevenção de duplicação
+      await supabase.from('system_logs').insert({
+        type: 'info',
+        source: 'dify',
+        message: 'Resposta duplicada do bot impedida - bot já respondeu recentemente',
+        details: {
+          conversation_id: conversationId,
+          phone_number: phoneNumber,
+          recent_bot_message_id: recentBotReply[0].id,
+          recent_bot_created_at: recentBotReply[0].created_at,
+          skipped_content: groupedMessage,
+          queue_ids: queueIds,
+          prevention_reason: 'bot_already_replied_recently'
+        }
+      });
+      
+      return;
+    }
+
+    // 2. Verifica se já existe mensagem similar do cliente recente (evitar duplicatas de entrada)
     const { data: existingMessage } = await supabase
       .from('messages')
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('content', groupedMessage)
       .eq('sender_type', 'customer')
-      .gte('created_at', new Date(Date.now() - 1 * 60 * 1000).toISOString()) // último 1 minuto apenas
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // últimos 2 minutos
       .limit(1);
 
     if (existingMessage.length > 0) {
-      console.log(`Duplicate customer message detected for ${phoneNumber}, skipping Dify call`);
+      console.log(`❌ Mensagem duplicada do cliente detectada para ${phoneNumber}, ignorando`);
       
       // Marca mensagens da fila como processadas
       if (queueIds.length > 0) {
@@ -233,12 +278,55 @@ async function processBufferedMessages(
           phone_number: phoneNumber,
           existing_message_id: existingMessage[0]?.id,
           duplicate_content: groupedMessage,
-          queue_ids: queueIds
+          queue_ids: queueIds,
+          prevention_reason: 'duplicate_customer_message'
         }
       });
       
       return;
     }
+
+    // 3. Sistema de Lock - verifica se já está sendo processado
+    const lockKey = `processing_${conversationId}`;
+    const { data: existingLock } = await supabase
+      .from('system_logs')
+      .select('id, created_at')
+      .eq('source', 'dify')
+      .eq('message', 'Processamento em andamento')
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // lock válido por 2 minutos
+      .like('details', `%${conversationId}%`)
+      .limit(1);
+
+    if (existingLock.length > 0) {
+      console.log(`🔒 Processamento já em andamento para conversa ${conversationId}, ignorando`);
+      
+      // Marca mensagens da fila como processadas (evita loop infinito)
+      if (queueIds.length > 0) {
+        await supabase
+          .from('message_queue')
+          .update({ 
+            status: 'skipped',
+            processed_at: new Date().toISOString()
+          })
+          .in('id', queueIds);
+      }
+      
+      return;
+    }
+
+    // 4. Cria lock de processamento
+    await supabase.from('system_logs').insert({
+      type: 'info',
+      source: 'dify',
+      message: 'Processamento em andamento',
+      details: {
+        conversation_id: conversationId,
+        phone_number: phoneNumber,
+        lock_created_at: new Date().toISOString(),
+        grouped_message: groupedMessage,
+        queue_ids: queueIds
+      }
+    });
 
     // Envia para Dify
     console.log(`Sending to Dify: ${config.api_url}/chat-messages`);
