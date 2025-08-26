@@ -31,7 +31,7 @@ interface DifyResponse {
 
 // Message buffer para agrupar mensagens
 const messageBuffer = new Map<string, { messages: string[], timer: number, queueIds: string[] }>();
-const GROUPING_TIME = 30000; // 30 segundos - mais responsivo
+const GROUPING_TIME = 10000; // 10 segundos - mais responsivo
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -199,14 +199,15 @@ async function processBufferedMessages(
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
     }
 
-    // Verifica se já existe uma resposta para esta mensagem (deduplicação)
+    // Verifica se já existe uma resposta para esta mensagem (deduplicação mais restritiva)
     const existingMessage = await supabase
       .from('messages')
       .select('id, metadata')
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'bot')
-      .eq('content', groupedMessage)
-      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // Últimos 5 minutos
+      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // Últimos 2 minutos apenas
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (existingMessage) {
