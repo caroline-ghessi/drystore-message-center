@@ -47,3 +47,9 @@ verify_jwt = false
 
 [functions.get-secret]
 verify_jwt = false
+
+[functions.dify-process-messages]
+verify_jwt = false
+
+[functions.reprocess-today-messages]
+verify_jwt = false
