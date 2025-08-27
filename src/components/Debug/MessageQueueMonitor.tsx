@@ -44,7 +44,7 @@ export function MessageQueueMonitor() {
   // Processa mensagens pendentes
   const processMessagesMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('process-pending-messages');
+      const { data, error } = await supabase.functions.invoke('dify-process-messages');
       
       if (error) throw error;
       return data;
