@@ -6,7 +6,7 @@ import { MessagePanel } from "@/components/WhatsApp/MessagePanel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TransferToSellerDialog } from "@/components/WhatsApp/TransferToSellerDialog";
 import { ManualTransferDialog } from "@/components/WhatsApp/ManualTransferDialog";
-import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Loader2, ArrowRight } from "lucide-react";
+import { Search, Phone, Clock, MessageSquare, User, AlertTriangle, Loader2, ArrowRight, Bot, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveSellers, useTransferToSeller } from "@/hooks/useSellers";
@@ -30,6 +30,8 @@ export default function MensagensOficial() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [isManualTransferDialogOpen, setIsManualTransferDialogOpen] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const [isReturningToBot, setIsReturningToBot] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -110,6 +112,63 @@ export default function MensagensOficial() {
     });
   };
 
+  const handleReturnToBot = async (conversationId: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Você precisa estar logado para devolver a conversa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsReturningToBot(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('return-conversation-to-bot', {
+        body: { conversation_id: conversationId }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Conversa Devolvida",
+        description: "A conversa foi devolvida ao bot com sucesso.",
+      });
+    } catch (error) {
+      console.error('Erro ao devolver conversa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao devolver conversa ao bot. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReturningToBot(false);
+    }
+  };
+
+  const handleReprocessTodayMessages = async () => {
+    setIsReprocessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('reprocess-today-messages');
+
+      if (error) throw error;
+
+      toast({
+        title: "Reprocessamento Iniciado",
+        description: `${data.conversations_processed} conversas foram adicionadas à fila de processamento.`,
+      });
+    } catch (error) {
+      console.error('Erro no reprocessamento:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao reprocessar mensagens. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReprocessing(false);
+    }
+  };
+
   const handleSendMessage = async (message: string) => {
     if (!selectedConversation || !user) return;
 
@@ -174,11 +233,28 @@ export default function MensagensOficial() {
   return (
     <div className="p-6 h-screen flex flex-col">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Mensagens WhatsApp Oficial</h1>
-        <p className="text-muted-foreground mt-1">
-          Acompanhe as conversas do canal oficial
-        </p>
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Mensagens WhatsApp Oficial</h1>
+          <p className="text-muted-foreground mt-1">
+            Acompanhe as conversas do canal oficial
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Button
+            onClick={handleReprocessTodayMessages}
+            disabled={isReprocessing}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            {isReprocessing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+            <span>{isReprocessing ? 'Reprocessando...' : 'Reprocessar Hoje'}</span>
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
@@ -283,6 +359,45 @@ export default function MensagensOficial() {
                       {/* Botões de Ação */}
                       {selectedConversation && (
                         <div className="flex items-center space-x-2">
+                          {/* Botão Devolver ao Bot - apenas em modo fallback */}
+                          {conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="flex items-center space-x-1"
+                                  disabled={isReturningToBot}
+                                >
+                                  {isReturningToBot ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Bot className="h-3 w-3" />
+                                  )}
+                                  <span>Devolver ao Bot</span>
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center space-x-2">
+                                    <Bot className="h-5 w-5 text-primary" />
+                                    <span>Devolver ao Bot</span>
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    A conversa será devolvida ao bot Dify para continuar o atendimento automático. 
+                                    O modo fallback será desativado. Deseja continuar?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleReturnToBot(selectedConversation)}>
+                                    Devolver ao Bot
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+
                           {/* Botão Transferir - apenas em modo fallback */}
                           {conversations.find(c => c.id === selectedConversation)?.fallback_mode && (
                             <TransferToSellerDialog
