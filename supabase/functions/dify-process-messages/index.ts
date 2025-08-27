@@ -31,7 +31,7 @@ interface DifyResponse {
 
 // Message buffer para agrupar mensagens
 const messageBuffer = new Map<string, { messages: string[], timer: number, queueIds: string[] }>();
-const GROUPING_TIME = 10000; // 10 segundos - mais responsivo
+const GROUPING_TIME = 8000; // 8 segundos - mais responsivo para evitar travamentos
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -199,20 +199,20 @@ async function processBufferedMessages(
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
     }
 
-    // 🔒 PROTEÇÃO ANTI-DUPLICAÇÃO ROBUSTA 🔒
+    // 🔒 PROTEÇÃO ANTI-DUPLICAÇÃO OTIMIZADA 🔒
     
-    // 1. Verifica se já existe resposta do bot recente (últimos 5 minutos)
+    // 1. Verifica se já existe resposta do bot muito recente (últimos 30 segundos apenas)
     const { data: recentBotReply } = await supabase
       .from('messages')
       .select('id, created_at, content')
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'bot')
-      .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // últimos 5 minutos
+      .gte('created_at', new Date(Date.now() - 30 * 1000).toISOString()) // apenas 30 segundos
       .order('created_at', { ascending: false })
       .limit(1);
 
     if (recentBotReply.length > 0) {
-      console.log(`❌ Bot já respondeu recentemente para ${phoneNumber}, ignorando processamento duplicado`);
+      console.log(`❌ Bot já respondeu há menos de 30s para ${phoneNumber}, aguardando`);
       
       // Marca mensagens da fila como processadas (evita reprocessamento)
       if (queueIds.length > 0) {
@@ -225,82 +225,37 @@ async function processBufferedMessages(
           .in('id', queueIds);
       }
 
-      // Log da prevenção de duplicação
+      // Log da prevenção (só para casos extremos)
       await supabase.from('system_logs').insert({
         type: 'info',
         source: 'dify',
-        message: 'Resposta duplicada do bot impedida - bot já respondeu recentemente',
+        message: 'Bot já respondeu há menos de 30 segundos - aguardando',
         details: {
           conversation_id: conversationId,
           phone_number: phoneNumber,
           recent_bot_message_id: recentBotReply[0].id,
           recent_bot_created_at: recentBotReply[0].created_at,
-          skipped_content: groupedMessage,
-          queue_ids: queueIds,
-          prevention_reason: 'bot_already_replied_recently'
+          time_since_last_bot: Math.floor((Date.now() - new Date(recentBotReply[0].created_at).getTime()) / 1000)
         }
       });
       
       return;
     }
 
-    // 2. Verifica se já existe mensagem similar do cliente recente (evitar duplicatas de entrada)
-    const { data: existingMessage } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('conversation_id', conversationId)
-      .eq('content', groupedMessage)
-      .eq('sender_type', 'customer')
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // últimos 2 minutos
-      .limit(1);
-
-    if (existingMessage.length > 0) {
-      console.log(`❌ Mensagem duplicada do cliente detectada para ${phoneNumber}, ignorando`);
-      
-      // Marca mensagens da fila como processadas
-      if (queueIds.length > 0) {
-        await supabase
-          .from('message_queue')
-          .update({ 
-            status: 'sent',
-            processed_at: new Date().toISOString()
-          })
-          .in('id', queueIds);
-      }
-
-      // Log de deduplicação
-      await supabase.from('system_logs').insert({
-        type: 'info',
-        source: 'dify',
-        message: 'Mensagem duplicada do cliente detectada e ignorada',
-        details: {
-          conversation_id: conversationId,
-          phone_number: phoneNumber,
-          existing_message_id: existingMessage[0]?.id,
-          duplicate_content: groupedMessage,
-          queue_ids: queueIds,
-          prevention_reason: 'duplicate_customer_message'
-        }
-      });
-      
-      return;
-    }
-
-    // 3. Sistema de Lock - verifica se já está sendo processado
-    const lockKey = `processing_${conversationId}`;
+    // 2. Sistema de Lock simplificado - apenas para processos simultâneos (30 segundos)
     const { data: existingLock } = await supabase
       .from('system_logs')
       .select('id, created_at')
       .eq('source', 'dify')
       .eq('message', 'Processamento em andamento')
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString()) // lock válido por 2 minutos
+      .gte('created_at', new Date(Date.now() - 30 * 1000).toISOString()) // lock válido por apenas 30 segundos
       .like('details', `%${conversationId}%`)
       .limit(1);
 
     if (existingLock.length > 0) {
-      console.log(`🔒 Processamento já em andamento para conversa ${conversationId}, ignorando`);
+      console.log(`🔒 Processamento simultâneo detectado para conversa ${conversationId}, aguardando`);
       
-      // Marca mensagens da fila como processadas (evita loop infinito)
+      // Marca mensagens da fila como processadas (evita loop)
       if (queueIds.length > 0) {
         await supabase
           .from('message_queue')
@@ -314,7 +269,7 @@ async function processBufferedMessages(
       return;
     }
 
-    // 4. Cria lock de processamento
+    // 3. Cria lock de processamento (mais curto)
     await supabase.from('system_logs').insert({
       type: 'info',
       source: 'dify',
@@ -323,7 +278,7 @@ async function processBufferedMessages(
         conversation_id: conversationId,
         phone_number: phoneNumber,
         lock_created_at: new Date().toISOString(),
-        grouped_message: groupedMessage,
+        grouped_message: groupedMessage.substring(0, 100) + '...', // só primeiros 100 chars para log
         queue_ids: queueIds
       }
     });
