@@ -31,7 +31,7 @@ interface DifyResponse {
 
 // Message buffer para agrupar mensagens
 const messageBuffer = new Map<string, { messages: string[], timer: number, queueIds: string[] }>();
-const GROUPING_TIME = 8000; // 8 segundos - mais responsivo para evitar travamentos
+const GROUPING_TIME = 60000; // 1 minuto como especificado nos requisitos
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -44,19 +44,76 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { conversationId, phoneNumber, messageContent, queueId } = await req.json();
+    const body = await req.json();
+    const { conversationId, phoneNumber, messageContent, queueId } = body;
 
-    console.log(`Processing message for conversation ${conversationId}, phone ${phoneNumber}`);
+    console.log(`🔄 Processing message for conversation ${conversationId || 'undefined'}, phone ${phoneNumber || 'undefined'}`);
 
-    // Verifica se a conversa está em modo bot
-    const { data: conversation } = await supabase
+    // Verificações de null/undefined mais robustas
+    if (!conversationId) {
+      console.error('❌ ConversationId is null or undefined');
+      return new Response(JSON.stringify({ 
+        error: 'ConversationId is required',
+        success: false 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!phoneNumber) {
+      console.error('❌ PhoneNumber is null or undefined');
+      return new Response(JSON.stringify({ 
+        error: 'PhoneNumber is required',
+        success: false 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!messageContent) {
+      console.error('❌ MessageContent is null or undefined');
+      return new Response(JSON.stringify({ 
+        error: 'MessageContent is required',
+        success: false 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Verifica se a conversa está em modo bot com tratamento robusto
+    const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('status, fallback_mode, phone_number, metadata')
       .eq('id', conversationId)
       .single();
 
-    if (!conversation || conversation.fallback_mode || conversation.status !== 'bot_attending') {
-      console.log('Conversation not in bot mode, skipping Dify processing');
+    if (convError) {
+      console.error('❌ Error fetching conversation:', convError);
+      return new Response(JSON.stringify({ 
+        error: `Failed to fetch conversation: ${convError.message}`,
+        success: false 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!conversation) {
+      console.log('❌ Conversation not found');
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Conversation not found' 
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (conversation.fallback_mode || conversation.status !== 'bot_attending') {
+      console.log(`❌ Conversation not in bot mode (status: ${conversation.status}, fallback: ${conversation.fallback_mode})`);
       
       // Marca mensagem da fila como processada se vier de lá
       if (queueId) {
@@ -71,7 +128,7 @@ serve(async (req) => {
       
       return new Response(JSON.stringify({ 
         success: true, 
-        message: 'Conversation not in bot mode' 
+        message: 'Conversation not in bot mode - skipped' 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -82,16 +139,17 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: 'Message added to buffer' 
+      message: 'Message added to buffer for processing' 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Error in dify-process-messages:', error);
+    console.error('❌ Critical error in dify-process-messages:', error);
     
     return new Response(JSON.stringify({ 
-      error: error.message 
+      error: `Critical error: ${error.message}`,
+      success: false
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -130,6 +188,8 @@ async function addToBuffer(
   if (buffer) {
     buffer.timer = timer;
   }
+  
+  console.log(`📝 Added message to buffer for ${phoneNumber}. Buffer size: ${buffer?.messages.length || 0}`);
 }
 
 async function processBufferedMessages(
@@ -148,19 +208,21 @@ async function processBufferedMessages(
   const queueIds = buffer.queueIds;
 
   try {
-    console.log(`Processing grouped message for ${phoneNumber}: ${groupedMessage}`);
+    console.log(`🚀 Processing grouped message for ${phoneNumber}: "${groupedMessage.substring(0, 100)}..."`);
 
-    // Busca configuração do Dify
+    // Busca configuração do Dify com tratamento robusto
     const { data: integration, error: integrationError } = await supabase
       .from('integrations')
       .select('config, active')
       .eq('type', 'dify')
       .single();
 
-    console.log('Dify integration found:', integration);
+    if (integrationError) {
+      throw new Error(`Failed to fetch Dify integration: ${integrationError.message}`);
+    }
 
-    if (integrationError || !integration) {
-      throw new Error(`Dify integration not found: ${integrationError?.message || 'No integration data'}`);
+    if (!integration) {
+      throw new Error('Dify integration not found');
     }
 
     if (!integration.active) {
@@ -174,11 +236,18 @@ async function processBufferedMessages(
     const config = integration.config as { api_url: string };
     const apiKey = Deno.env.get('DIFY_API_KEY');
     
-    console.log('Dify config:', { api_url: config.api_url, has_api_key: !!apiKey });
+    console.log(`🔑 Dify config: ${config.api_url}, API key: ${apiKey ? 'present' : 'MISSING'}`);
     
     if (!apiKey) {
       throw new Error('DIFY_API_KEY not found in secrets. Please configure it in Supabase dashboard.');
     }
+
+    // Busca conversation_id do Dify se existir
+    const { data: existingConversation } = await supabase
+      .from('conversations')
+      .select('metadata')
+      .eq('id', conversationId)
+      .single();
 
     // Prepara payload para Dify
     const payload: DifyMessage = {
@@ -188,33 +257,24 @@ async function processBufferedMessages(
       user: phoneNumber,
     };
 
-    // Busca conversation_id do Dify se existir
-    const { data: existingConversation } = await supabase
-      .from('conversations')
-      .select('metadata')
-      .eq('id', conversationId)
-      .single();
-
     if (existingConversation?.metadata?.dify_conversation_id) {
       payload.conversation_id = existingConversation.metadata.dify_conversation_id;
+      console.log(`🔗 Using existing Dify conversation: ${payload.conversation_id}`);
     }
 
-    // 🔒 PROTEÇÃO ANTI-DUPLICAÇÃO OTIMIZADA 🔒
-    
-    // 1. Verifica se já existe resposta do bot muito recente (últimos 30 segundos apenas)
+    // Anti-duplicação: verifica se já existe resposta recente
     const { data: recentBotReply } = await supabase
       .from('messages')
-      .select('id, created_at, content')
+      .select('id, created_at')
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'bot')
-      .gte('created_at', new Date(Date.now() - 30 * 1000).toISOString()) // apenas 30 segundos
+      .gte('created_at', new Date(Date.now() - 30 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (recentBotReply.length > 0) {
-      console.log(`❌ Bot já respondeu há menos de 30s para ${phoneNumber}, aguardando`);
+    if (recentBotReply && recentBotReply.length > 0) {
+      console.log(`⏸️ Bot replied recently, skipping to avoid duplication`);
       
-      // Marca mensagens da fila como processadas (evita reprocessamento)
       if (queueIds.length > 0) {
         await supabase
           .from('message_queue')
@@ -224,100 +284,79 @@ async function processBufferedMessages(
           })
           .in('id', queueIds);
       }
-
-      // Log da prevenção (só para casos extremos)
-      await supabase.from('system_logs').insert({
-        type: 'info',
-        source: 'dify',
-        message: 'Bot já respondeu há menos de 30 segundos - aguardando',
-        details: {
-          conversation_id: conversationId,
-          phone_number: phoneNumber,
-          recent_bot_message_id: recentBotReply[0].id,
-          recent_bot_created_at: recentBotReply[0].created_at,
-          time_since_last_bot: Math.floor((Date.now() - new Date(recentBotReply[0].created_at).getTime()) / 1000)
-        }
-      });
-      
       return;
     }
 
-    // 2. Sistema de Lock simplificado - apenas para processos simultâneos (30 segundos)
-    const { data: existingLock } = await supabase
-      .from('system_logs')
-      .select('id, created_at')
-      .eq('source', 'dify')
-      .eq('message', 'Processamento em andamento')
-      .gte('created_at', new Date(Date.now() - 30 * 1000).toISOString()) // lock válido por apenas 30 segundos
-      .like('details', `%${conversationId}%`)
-      .limit(1);
-
-    if (existingLock.length > 0) {
-      console.log(`🔒 Processamento simultâneo detectado para conversa ${conversationId}, aguardando`);
-      
-      // Marca mensagens da fila como processadas (evita loop)
-      if (queueIds.length > 0) {
-        await supabase
-          .from('message_queue')
-          .update({ 
-            status: 'skipped',
-            processed_at: new Date().toISOString()
-          })
-          .in('id', queueIds);
-      }
-      
-      return;
-    }
-
-    // 3. Cria lock de processamento (mais curto)
-    await supabase.from('system_logs').insert({
-      type: 'info',
-      source: 'dify',
-      message: 'Processamento em andamento',
-      details: {
-        conversation_id: conversationId,
-        phone_number: phoneNumber,
-        lock_created_at: new Date().toISOString(),
-        grouped_message: groupedMessage.substring(0, 100) + '...', // só primeiros 100 chars para log
-        queue_ids: queueIds
-      }
-    });
-
-    // Envia para Dify
-    console.log(`Sending to Dify: ${config.api_url}/chat-messages`);
-    console.log('Payload:', JSON.stringify(payload, null, 2));
+    // Envia para Dify com timeout e retry
+    console.log(`📤 Sending to Dify: ${config.api_url}/chat-messages`);
     
-    const response = await fetch(`${config.api_url}/chat-messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`);
-      throw new Error(`Dify API error: ${response.status} ${response.statusText} - ${errorText}`);
+    let response;
+    let retries = 0;
+    const maxRetries = 3;
+
+    while (retries < maxRetries) {
+      try {
+        response = await fetch(`${config.api_url}/chat-messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          break; // Sucesso, sai do loop
+        } else {
+          const errorText = await response.text();
+          console.error(`🚫 Dify API error (attempt ${retries + 1}): ${response.status} - ${errorText}`);
+          
+          if (retries === maxRetries - 1) {
+            throw new Error(`Dify API error after ${maxRetries} attempts: ${response.status} - ${errorText}`);
+          }
+        }
+      } catch (error) {
+        console.error(`🚫 Network error (attempt ${retries + 1}):`, error);
+        
+        if (retries === maxRetries - 1) {
+          throw new Error(`Network error after ${maxRetries} attempts: ${error.message}`);
+        }
+      }
+      
+      retries++;
+      // Espera progressivamente mais tempo entre tentativas
+      await new Promise(resolve => setTimeout(resolve, 1000 * retries));
     }
 
-    const difyResponse: DifyResponse = await response.json();
+    const difyResponse: DifyResponse = await response!.json();
+    console.log(`✅ Dify response received: ${difyResponse.answer.substring(0, 100)}...`);
 
     // Salva resposta do bot no banco
-    await supabase.from('messages').insert({
+    const { error: messageError } = await supabase.from('messages').insert({
       conversation_id: conversationId,
       sender_type: 'bot',
       sender_name: 'Dify Bot',
       content: difyResponse.answer,
       message_type: 'text',
+      delivery_status: 'sent',
+      message_source: 'dify',
       metadata: {
         dify_message_id: difyResponse.message_id,
         tokens_used: difyResponse.metadata.usage.total_tokens
       }
     });
 
-    // Atualiza conversa com conversation_id do Dify preservando metadata existente
+    if (messageError) {
+      console.error('❌ Error saving bot message:', messageError);
+    }
+
+    // Atualiza conversa com conversation_id do Dify
     const currentMetadata = existingConversation?.metadata || {};
     await supabase
       .from('conversations')
@@ -325,7 +364,8 @@ async function processBufferedMessages(
         metadata: {
           ...currentMetadata,
           dify_conversation_id: difyResponse.conversation_id,
-          last_dify_message: difyResponse.message_id
+          last_dify_message: difyResponse.message_id,
+          last_processed_at: new Date().toISOString()
         }
       })
       .eq('id', conversationId);
@@ -348,21 +388,22 @@ async function processBufferedMessages(
     await supabase.from('system_logs').insert({
       type: 'info',
       source: 'dify',
-      message: 'Mensagem processada e enviada com sucesso',
+      message: '✅ Mensagem processada e enviada com sucesso',
       details: {
         conversation_id: conversationId,
         phone_number: phoneNumber,
         message_id: difyResponse.message_id,
         tokens_used: difyResponse.metadata.usage.total_tokens,
         queue_ids: queueIds,
-        buffer_used: true
+        grouped_messages_count: buffer.messages.length,
+        retries_used: retries
       }
     });
 
-    console.log(`Successfully processed message for ${phoneNumber}`);
+    console.log(`✅ Successfully processed and sent message for ${phoneNumber}`);
 
   } catch (error) {
-    console.error('Error processing buffered messages:', error);
+    console.error('❌ Error processing buffered messages:', error);
     
     // Marca mensagens da fila como erro
     if (queueIds.length > 0) {
@@ -375,16 +416,18 @@ async function processBufferedMessages(
         .in('id', queueIds);
     }
     
-    // Log de erro
+    // Log de erro detalhado
     await supabase.from('system_logs').insert({
       type: 'error',
       source: 'dify',
-      message: 'Erro ao processar mensagem agrupada',
+      message: '❌ Erro ao processar mensagem agrupada',
       details: {
         conversation_id: conversationId,
         phone_number: phoneNumber,
         error: error.message,
-        queue_ids: queueIds
+        stack: error.stack,
+        queue_ids: queueIds,
+        grouped_messages_count: buffer.messages.length
       }
     });
   }
@@ -392,8 +435,10 @@ async function processBufferedMessages(
 
 async function sendWhatsAppReply(phoneNumber: string, message: string, supabase: any) {
   try {
+    console.log(`📱 Sending WhatsApp reply to ${phoneNumber}`);
+    
     // Chama a edge function de envio do WhatsApp
-    const { error } = await supabase.functions.invoke('whatsapp-send', {
+    const { data, error } = await supabase.functions.invoke('whatsapp-send', {
       body: {
         to: phoneNumber,
         content: message,
@@ -402,12 +447,13 @@ async function sendWhatsAppReply(phoneNumber: string, message: string, supabase:
     });
 
     if (error) {
-      throw error;
+      throw new Error(`WhatsApp send error: ${error.message}`);
     }
 
-    console.log(`WhatsApp reply sent to ${phoneNumber}`);
+    console.log(`✅ WhatsApp reply sent successfully to ${phoneNumber}`);
+    return data;
   } catch (error) {
-    console.error('Error sending WhatsApp reply:', error);
+    console.error('❌ Error sending WhatsApp reply:', error);
     throw error;
   }
 }
