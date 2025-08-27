@@ -44,7 +44,9 @@ export function MessageQueueMonitor() {
   // Processa mensagens pendentes
   const processMessagesMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('dify-process-messages');
+      const { data, error } = await supabase.functions.invoke('bot-dify-processor', {
+        body: { manual_trigger: true }
+      });
       
       if (error) throw error;
       return data;
@@ -52,7 +54,7 @@ export function MessageQueueMonitor() {
     onSuccess: (data) => {
       toast({
         title: "Processamento concluído",
-        description: `${data.processed} mensagens processadas, ${data.errors} erros`,
+        description: `${data.processed_count || 0} mensagens processadas, ${data.error_count || 0} erros`,
       });
       queryClient.invalidateQueries({ queryKey: ['message-queue'] });
     },

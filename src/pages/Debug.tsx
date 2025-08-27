@@ -13,6 +13,7 @@ import { DeliveryStatusPanel } from "@/components/WhatsApp/DeliveryStatusPanel";
 import { DeliveryTestPanel } from "@/components/Debug/DeliveryTestPanel";
 import { DeliveryMonitorPanel } from "@/components/Debug/DeliveryMonitorPanel";
 import { WhapiSystemDiagnostic } from "@/components/Debug/WhapiSystemDiagnostic";
+import { CronJobManager } from "@/components/Debug/CronJobManager";
 
 export default function Debug() {
   return (
@@ -23,8 +24,9 @@ export default function Debug() {
       </div>
 
       <Tabs defaultValue="diagnostic" className="w-full">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="diagnostic">Diagnóstico</TabsTrigger>
+          <TabsTrigger value="cron-manager">Cron Jobs</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="dify">Dify</TabsTrigger>
           <TabsTrigger value="ai-agents">Agentes IA</TabsTrigger>
@@ -38,6 +40,10 @@ export default function Debug() {
 
         <TabsContent value="diagnostic" className="space-y-6">
           <WhapiSystemDiagnostic />
+        </TabsContent>
+
+        <TabsContent value="cron-manager" className="space-y-6">
+          <CronJobManager />
         </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-6">
